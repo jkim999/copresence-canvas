@@ -78,7 +78,7 @@ war, no lost work.
 
 ## The tools
 
-Eight tools are registered on the page. Open the **Tools** tab in the app to read each
+Nine tools are registered on the page. Open the **Tools** tab in the app to read each
 one's live JSON Schema.
 
 | Tool | Kind | What it does |
@@ -90,6 +90,7 @@ one's live JSON Schema.
 | `summarize_cluster` | write | Collapse a group into one summary note in place; edges to the outside world are rewired to it. |
 | `add_notes` | write | Contribute new material, not just rearrange existing notes. |
 | `reorganize_board` | **gated** | Restructure everything at once. Asks the human first, and takes no for an answer. |
+| `get_human_activity` | read | What the human has been doing alongside you: notes they recently added, edited or moved, and the notes they are **holding right now**. |
 | `undo_last_agent_action` | write | The agent reverts its own last change. |
 
 Two details in the tool contract are worth calling out, because they are where
@@ -99,6 +100,10 @@ co-presence stops being a demo and starts being a protocol:
   tool result names that note back to the model with *"the human took those notes while
   you were moving them… do not move them back unless asked."* The agent finds out it was
   interrupted, and by whom.
+- **Perception, not just action.** `get_human_activity` lets the agent ask what you are
+  doing *right now* — which notes you are physically holding, which you just touched —
+  so it can work around you instead of over you. Acting concurrently is half of
+  co-presence; noticing the other party is the other half.
 - **`nudgedAside`** — a group laid out in place can land on notes that weren't part of
   it. The agent sweeps those just clear (never one you're holding) and reports which,
   so the board is never left overlapping and the model knows what else it disturbed.
@@ -129,8 +134,15 @@ turn-taking.
 ```bash
 npm install
 npm run dev      # http://localhost:5173
+npm run test     # geometry, chronology and the grip invariant
 npm run build    # production build to dist/
 ```
+
+`npm test` covers the parts where a silent regression would be invisible on screen:
+chronology inference, every layout's centring and totality, overlap relaxation,
+nearest-neighbour visiting — and the grip invariant itself, asserted at the store level
+(the agent must not move a held note, and must be able to move it again the moment the
+human lets go).
 
 ### Trying it with a real agent
 

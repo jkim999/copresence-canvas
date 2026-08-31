@@ -75,7 +75,10 @@ const clusterLayout = (nodes: SceneNode[]): Positions => {
     const radius = ring * Math.max(cell.w, cell.h) * 0.78;
     const take = Math.min(count, nodes.length - index);
     for (let i = 0; i < take; i += 1) {
-      const angle = (i / count) * Math.PI * 2 - Math.PI / 2 + ring * 0.35;
+      // Spread over however many notes this ring actually holds. Using the
+      // ring's full capacity would bunch a partial ring into one arc and pull
+      // the whole cluster off its own centre.
+      const angle = (i / take) * Math.PI * 2 - Math.PI / 2 + ring * 0.35;
       const n = nodes[index + i];
       out[n.id] = {
         x: c.x + Math.cos(angle) * radius - n.w / 2,

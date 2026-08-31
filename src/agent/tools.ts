@@ -92,6 +92,59 @@ export const buildTools = (): ToolDefinition[] => [
   },
 
   {
+    name: 'get_human_activity',
+    description:
+      'See what the human has been doing on the canvas alongside you: which notes they ' +
+      'have added, edited or moved recently, and which notes they are physically holding ' +
+      'right now. You are both working on this board at the same time — check this before ' +
+      'rearranging an area, and never move a note the human is currently holding.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sinceSeconds: {
+          type: 'number',
+          description: 'How far back to look, in seconds. Defaults to 120.',
+        },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, title: 'See what the human is doing' },
+    execute: async (args) => {
+      const raw = typeof args?.sinceSeconds === 'number' ? args.sinceSeconds : 120;
+      const window = Math.min(3600, Math.max(5, raw)) * 1000;
+      const state = useSceneStore.getState();
+      const cutoff = Date.now() - window;
+
+      const touched = state.scene.nodes
+        .filter((n) => n.lastEditedBy === 'human' && n.editedAt > 0 && n.editedAt >= cutoff)
+        .sort((a, b) => b.editedAt - a.editedAt)
+        .map((n) => ({
+          id: n.id,
+          text: n.text,
+          secondsAgo: Math.round((Date.now() - n.editedAt) / 1000),
+        }));
+
+      const holding = state.humanGrip
+        .map((id) => state.getNode(id))
+        .filter((n): n is NonNullable<typeof n> => Boolean(n))
+        .map((n) => ({ id: n.id, text: n.text }));
+
+      return {
+        holdingRightNow: holding,
+        recentlyTouched: touched.slice(0, 20),
+        windowSeconds: Math.round(window / 1000),
+        note:
+          holding.length > 0
+            ? 'The human is holding those notes right now. Leave them alone and work elsewhere.'
+            : touched.length > 0
+              ? 'The human is actively working on the notes listed. Consider helping around ' +
+                'them rather than rearranging the area they are in.'
+              : 'The human has not changed anything recently. The board is yours to organise.',
+      };
+    },
+  },
+
+  {
     name: 'arrange_region',
     description:
       'Physically reposition a set of notes into a spatial layout. You choose WHAT belongs ' +
