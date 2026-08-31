@@ -55,6 +55,11 @@ all interleaved.
    *"one action asks. Everything else stays fluid — gating all of them would turn this
    back into a chatbot."* Approve it, and let the board restructure.
 
+**The perception beat.** Grab a note and hold it, then run *"Notice what I am doing"*.
+The agent calls `get_human_activity`, sees the note in your hand, and writes a comment
+onto the board saying it will leave that one alone. Say: *"it isn't just acting while I
+work — it can see that I'm working."*
+
 Somewhere in here, grab a note the agent is mid-way through carrying. It lets go
 immediately and permanently — and the tool result tells the agent it yielded, so it
 doesn't fight you for it.

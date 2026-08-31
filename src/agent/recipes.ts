@@ -54,6 +54,38 @@ export const RECIPES: Recipe[] = [
     run: (call) => call('get_scene', {}),
   },
   {
+    id: 'watch',
+    title: 'Notice what I am doing',
+    blurb:
+      'Hold a note with your mouse, then press this. The agent checks what you are working ' +
+      'on and writes what it saw onto the board — without touching your note.',
+    tool: 'get_human_activity → annotate_scene',
+    run: async (call) => {
+      const activity = (await call('get_human_activity', { sinceSeconds: 120 })) as {
+        holdingRightNow: { id: string; text: string }[];
+        recentlyTouched: { id: string; text: string; secondsAgo: number }[];
+      };
+
+      if (activity.holdingRightNow.length > 0) {
+        const held = activity.holdingRightNow[0];
+        return call('annotate_scene', {
+          text: `You are holding "${held.text}" right now — I'll leave it alone and work around you.`,
+          nodeId: held.id,
+        });
+      }
+      if (activity.recentlyTouched.length > 0) {
+        const last = activity.recentlyTouched[0];
+        return call('annotate_scene', {
+          text: `You touched "${last.text}" ${last.secondsAgo}s ago. Want me to group what it belongs with?`,
+          nodeId: last.id,
+        });
+      }
+      return call('annotate_scene', {
+        text: 'You have not moved anything recently, so I organised nothing. Grab a note and press this again.',
+      });
+    },
+  },
+  {
     id: 'timeline',
     title: 'Build the timeline',
     blurb: 'Find every dated note and lay them out left-to-right in real chronological order.',
