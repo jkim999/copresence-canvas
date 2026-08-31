@@ -1,0 +1,215 @@
+# Co-Presence Canvas
+
+**An infinite canvas where you and an AI agent edit the same live scene at the same time.**
+
+The agent appears as a second, labelled cursor. It travels to a note, picks it up,
+and carries it somewhere better — while you keep dragging notes of your own. You are
+never asked to wait your turn.
+
+Built for the [WebMCP Challenge](https://webmcp.devpost.com/). Everything the agent
+touches lives in the page's own memory. **There is no server holding this state, and
+no API that could reach it.**
+
+---
+
+## The idea
+
+Almost every "AI in an app" experience today is a chatbox that drives the product one
+turn at a time: you ask, you wait, it acts, you look. The human is idle for half the
+interaction, and the agent is blind between turns.
+
+WebMCP makes a different shape possible. Because tool handlers run *inside the page*,
+against live client-side state, the agent doesn't have to take a turn at all. It can
+act **concurrently** with you, on the same objects, in the same coordinate space.
+
+Co-Presence Canvas is built to make that difference visible in five seconds:
+
+> You are dragging a sticky note. At the same moment, a violet cursor labelled
+> **Agent** walks across the board, picks up six other notes one by one, and lays them
+> out into a chronological timeline. Neither of you stops for the other.
+
+That is the whole product thesis. The collaboration *is* the feature.
+
+## Why this needs WebMCP specifically
+
+A canvas is the sharpest possible case for in-browser tools, because a canvas is
+almost entirely **client-side state that no server models**:
+
+| | Server-side API | WebMCP (this) |
+|---|---|---|
+| Where node positions live | nowhere — they're ephemeral UI state | the page, readable directly |
+| How the agent "sees" | screenshot → vision model → guesswork | `get_scene` → 4 KB of structured JSON |
+| What the agent can do | request a save, wait for a round-trip | mutate the live scene at 60 fps |
+| Human during agent action | blocked, or fighting a stale write | still dragging, uninterrupted |
+| Cost of one board read | a full-page screenshot | ~1,100 tokens for 28 notes |
+
+The board in this repo serialises to **4,388 bytes** for 28 notes, edges, regions and
+annotations. That is the token-efficiency story, and it is why the agent is reliable:
+it addresses notes by id, never by pixel.
+
+## Design principles
+
+These were decided up front and every part of the code answers to them.
+
+1. **Simultaneity over turn-taking.** Human input is never blocked. Exactly one
+   action — the destructive whole-board restructure — pauses for consent.
+2. **The agent is a physical actor.** It has a body. It *travels* to each note before
+   moving it, and the note it just grabbed is still in flight while the cursor walks to
+   the next one. Nothing teleports. The travel animation is the story, not decoration.
+3. **Tools take ids and intent, never pixels.** The agent decides *what* belongs
+   together and *what shape* the group should take. The page computes *where*. This is
+   what keeps a language model reliable at a geometry task.
+4. **`get_scene` returns JSON, not a screenshot.**
+5. **Every mutation records `lastEditedBy`.** Provenance tinting and one-click
+   "undo the agent" fall straight out of it.
+
+### The human's grip is sacred
+
+The one invariant that makes concurrent editing safe, in `sceneStore.moveNodes`:
+
+```ts
+// Never fight the human: a node under their cursor is theirs.
+if (!p || grip.has(n.id)) return n;
+```
+
+If you grab a note the agent is mid-way through carrying, the agent's tween for that
+note is cancelled on the next frame and it lets go permanently. No jitter, no tug of
+war, no lost work.
+
+## The tools
+
+Eight tools are registered on the page. Open the **Tools** tab in the app to read each
+one's live JSON Schema.
+
+| Tool | Kind | What it does |
+|---|---|---|
+| `get_scene` | read | Every note with its id and text, plus edges, regions, annotations and bounds, as structured JSON. |
+| `arrange_region` | write | **The headline tool.** Reposition a set of notes into `cluster`, `timeline_horizontal`, `grid` or `hierarchy`. Takes ids + a layout + an optional label. |
+| `find_and_link` | write | Draw labelled edges between notes the agent judges related, given a stated criterion. |
+| `annotate_scene` | write | Pin a floating comment to a note or to the board — thinking in space without moving anything. |
+| `summarize_cluster` | write | Collapse a group into one summary note in place; edges to the outside world are rewired to it. |
+| `add_notes` | write | Contribute new material, not just rearrange existing notes. |
+| `reorganize_board` | **gated** | Restructure everything at once. Asks the human first, and takes no for an answer. |
+| `undo_last_agent_action` | write | The agent reverts its own last change. |
+
+### The one confirmation beat
+
+WebMCP has no standardised elicitation call today, so the page owns the gate. The tool
+handler simply awaits a promise that a modal resolves:
+
+```ts
+const approved = await useConfirmStore.getState().request({ ... });
+if (!approved) {
+  return { approved: false, message: 'The human declined. Do not retry without new reasoning.' };
+}
+```
+
+The agent's own tool promise does not settle until you decide. Every *other* action
+stays ungated, because gating them all would quietly turn the product back into
+turn-taking.
+
+## Running it
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # production build to dist/
+```
+
+### Trying it with a real agent
+
+Open the deployed URL in **ChatGPT's in-app browser**, or in Chrome with
+`chrome://flags/#enable-webmcp-testing` enabled. The header pill turns green and names
+the transport when a host is detected. Then just ask:
+
+- *"Read the board and lay the dated notes out as a timeline."*
+- *"Group the interview quotes together and tell me what they have in common."*
+- *"Link each piece of evidence to the hypothesis it supports."*
+- *"Reorganise the whole board by kind."* — this one will ask you first.
+
+**Drag notes around while it works.** That is the demo.
+
+### Trying it without a WebMCP host
+
+The **Agent console** in the right-hand panel drives the *same registered handlers* a
+host calls — it reads `get_scene`, picks note ids out of the text exactly as a model
+would, then invokes the tool. It is not a private back door into the store; there is
+one code path. Handlers are also on `window.__copresence.call` for poking at from
+devtools:
+
+```js
+await window.__copresence.call.get_scene({})
+await window.__copresence.call.arrange_region({
+  nodeIds: ['n_12', 'n_13', 'n_14'],
+  layout: 'timeline_horizontal',
+  label: 'What happened, in order',
+})
+```
+
+## How it's put together
+
+```
+src/
+  state/        scene store — the single source of truth both actors mutate
+  agent/
+    webmcp.ts   host detection + registration + call instrumentation
+    tools.ts    the eight tool definitions and their JSON Schemas
+    actions.ts  choreography: cursor travel, carry, gather, gate
+    layout.ts   geometry for the four layouts, chronology inference, overlap relaxation
+    motion.ts   one rAF loop driving every concurrent tween, plus the watchdog
+    recipes.ts  scripted agent behaviours for the in-page console
+  canvas/       React Flow wiring, sticky notes, agent cursor, regions, annotations
+  ui/           top bar, side panel, the consent dialog
+```
+
+Two functions carry the product:
+
+**`applyLayout(nodes, layout, edges)`** — geometry for all four modes. `cluster` packs
+into concentric rings around the group's own centroid; `timeline_horizontal` *infers
+chronology from the note text* (`chronoKey` parses `Mar 3`, `2026-04-15`, `Q2`,
+`step 3`) and falls back to spatial order; `grid` wraps into an aspect-balanced matrix;
+`hierarchy` does a BFS over any edges inside the selection and layers by depth. Every
+layout is centred on the group's existing centroid, so the board reorganises *in place*
+rather than teleporting across the world. `relaxOverlaps` then pushes apart anything
+still colliding, so the agent never leaves two notes stacked.
+
+**`animateAgentCursorThrough(nodeIds, { targets })`** — visits notes in
+nearest-neighbour order, and deliberately **overlaps travel with carry**: the note it
+just grabbed is still tweening to its destination while the cursor walks to the next
+one. Awaiting each move in turn would look like a batch job; overlapping them looks
+like someone working.
+
+### Two bugs worth knowing about
+
+Both were found by running the thing, and both would have sunk the demo:
+
+- **React Flow feedback loop.** In a fully controlled setup, React Flow echoes position
+  changes back on every render. Writing those into the store feeds itself and pins the
+  main thread. Position changes are now only accepted when `change.dragging` is true.
+- **`requestAnimationFrame` stops in a hidden tab.** An agent may well be driving this
+  page while it isn't the foreground tab — and a tool call whose animation never
+  finishes is a promise that never settles, which strands the whole conversation. The
+  motion loop now has a `setInterval` watchdog that steps the same clock forward
+  whenever rAF has gone quiet, so every animation completes and every tool call always
+  returns.
+
+## Where this actually matters
+
+Anywhere the meaningful state is spatial and lives only in the browser:
+
+- **Research synthesis and affinity mapping** — the demo board is an onboarding-drop
+  investigation, which is exactly the artefact a researcher has open at 6pm with 40
+  notes and no structure.
+- **Systems and incident design** — dependency graphs, blast-radius diagrams.
+- **Retros and planning** — an agent that clusters 60 sticky notes *while the room is
+  still adding them*, instead of after.
+- **Anything a screenshot-driven agent handles badly**, which is every canvas.
+
+## Stack
+
+React 19 · Vite · TypeScript (strict) · [React Flow](https://reactflow.dev) · Zustand ·
+WebMCP. No backend, no database, no network calls at runtime.
+
+## Licence
+
+MIT — see [LICENSE](./LICENSE).
