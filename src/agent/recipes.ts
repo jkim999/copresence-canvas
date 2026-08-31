@@ -142,6 +142,42 @@ export const RECIPES: Recipe[] = [
     },
   },
   {
+    id: 'tree',
+    title: 'Build the fix tree',
+    blurb:
+      'Two tools composing: link each hypothesis to the action that addresses it, then ' +
+      'lay the whole thing out as a dependency hierarchy.',
+    tool: 'find_and_link → arrange_region',
+    run: async (call) => {
+      const groups = byCategory();
+      const KEYS: Record<string, RegExp> = {
+        'team size': /team size|team-size|step 3|data users don't have|don.t have yet/i,
+        email: /email|verification|deliver|magic.?link/i,
+        mobile: /mobile|cta|layout/i,
+        preview: /preview|sandbox|demo|before committing/i,
+      };
+
+      const links: { from: string; to: string; label: string }[] = [];
+      for (const h of groups.hypothesis) {
+        const match = Object.values(KEYS).find((re) => re.test(h.text));
+        if (!match) continue;
+        for (const a of groups.action) {
+          if (match.test(a.text)) links.push({ from: h.id, to: a.id, label: 'addressed by' });
+        }
+      }
+      if (links.length === 0) throw new Error('Nothing to connect — the hypotheses are gone.');
+
+      await call('find_and_link', { criterion: 'hypothesis is addressed by action', links });
+
+      const linked = new Set(links.flatMap((l) => [l.from, l.to]));
+      return call('arrange_region', {
+        nodeIds: [...linked],
+        layout: 'hierarchy',
+        label: 'Hypotheses → fixes',
+      });
+    },
+  },
+  {
     id: 'annotate',
     title: 'Point out what is missing',
     blurb: 'Leave a floating comment on the board without moving a single note.',

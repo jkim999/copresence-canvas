@@ -97,6 +97,69 @@ export const animateAgentCursorThrough = async (
   };
 };
 
+/**
+ * A group laid out in place can land on top of notes that were not part of it.
+ * Rather than leave the board overlapping, the agent shoves the strays just
+ * clear of the group — the way you would sweep an arm across a real whiteboard.
+ * Notes the human is holding are never touched, and every nudge is reported so
+ * the agent knows what else it disturbed.
+ */
+const clearStrays = async (
+  memberIds: string[],
+  targets: Record<string, { x: number; y: number }>,
+): Promise<string[]> => {
+  const members = new Set(memberIds);
+  const grip = new Set(useSceneStore.getState().humanGrip);
+  const placed = memberIds
+    .map((id) => {
+      const n = useSceneStore.getState().getNode(id);
+      const t = targets[id];
+      return n && t ? { x: t.x, y: t.y, w: n.w, h: n.h } : null;
+    })
+    .filter((r): r is { x: number; y: number; w: number; h: number } => r !== null);
+  if (placed.length === 0) return [];
+
+  const PAD = 34;
+  const box = {
+    x: Math.min(...placed.map((r) => r.x)) - PAD,
+    y: Math.min(...placed.map((r) => r.y)) - PAD,
+    right: Math.max(...placed.map((r) => r.x + r.w)) + PAD,
+    bottom: Math.max(...placed.map((r) => r.y + r.h)) + PAD,
+  };
+
+  const strays = useSceneStore
+    .getState()
+    .scene.nodes.filter(
+      (n) =>
+        !members.has(n.id) &&
+        !grip.has(n.id) &&
+        n.x < box.right &&
+        n.x + n.w > box.x &&
+        n.y < box.bottom &&
+        n.y + n.h > box.y,
+    );
+  if (strays.length === 0) return [];
+
+  await Promise.all(
+    strays.map((n) => {
+      // Leave by the nearest edge, so nothing travels further than it must.
+      const outLeft = box.x - (n.x + n.w);
+      const outRight = box.right - n.x;
+      const outUp = box.y - (n.y + n.h);
+      const outDown = box.bottom - n.y;
+      const best = [
+        { dx: outLeft, dy: 0, d: Math.abs(outLeft) },
+        { dx: outRight, dy: 0, d: Math.abs(outRight) },
+        { dx: 0, dy: outUp, d: Math.abs(outUp) },
+        { dx: 0, dy: outDown, d: Math.abs(outDown) },
+      ].sort((a, b) => a.d - b.d)[0];
+      return tweenNodeTo(n.id, n.x + best.dx, n.y + best.dy, 380);
+    }),
+  );
+
+  return strays.map((n) => n.id);
+};
+
 // ---------------------------------------------------------------------------
 // arrange_region
 // ---------------------------------------------------------------------------
@@ -108,6 +171,7 @@ export interface ArrangeResult {
   label: string | null;
   skipped: string[];
   yieldedToHuman: string[];
+  nudgedAside: string[];
 }
 
 export const arrangeRegion = async (
@@ -119,7 +183,15 @@ export const arrangeRegion = async (
   const nodes = resolveNodes(nodeIds);
   const skipped = nodeIds.filter((id) => !nodes.some((n) => n.id === id));
   if (nodes.length === 0) {
-    return { moved: 0, layout, regionId: null, label: label ?? null, skipped, yieldedToHuman: [] };
+    return {
+      moved: 0,
+      layout,
+      regionId: null,
+      label: label ?? null,
+      skipped,
+      yieldedToHuman: [],
+      nudgedAside: [],
+    };
   }
 
   store.snapshot(label ? `Arrange "${label}" as ${layout}` : `Arrange ${nodes.length} notes as ${layout}`, 'agent');
@@ -131,6 +203,7 @@ export const arrangeRegion = async (
   );
 
   const { moved, yieldedToHuman } = await animateAgentCursorThrough(nodeIds, { targets });
+  const nudgedAside = await clearStrays(nodes.map((n) => n.id), targets);
 
   let regionId: string | null = null;
   if (label) {
@@ -141,7 +214,7 @@ export const arrangeRegion = async (
     regionId = region.id;
   }
 
-  return { moved, layout, regionId, label: label ?? null, skipped, yieldedToHuman };
+  return { moved, layout, regionId, label: label ?? null, skipped, yieldedToHuman, nudgedAside };
 };
 
 // ---------------------------------------------------------------------------

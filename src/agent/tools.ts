@@ -10,6 +10,7 @@ import {
   summarizeCluster,
 } from './actions';
 import type { ToolDefinition } from './webmcp';
+import { withAgentBody } from './body';
 
 const round = (n: number): number => Math.round(n);
 
@@ -125,7 +126,7 @@ export const buildTools = (): ToolDefinition[] => [
       const layout = asLayout(args?.layout);
       const label = typeof args?.label === 'string' ? args.label : undefined;
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
-      const result = await arrangeRegion(nodeIds, layout, label);
+      const result = await withAgentBody(() => arrangeRegion(nodeIds, layout, label));
       return {
         moved: result.moved,
         layout: result.layout,
@@ -134,6 +135,8 @@ export const buildTools = (): ToolDefinition[] => [
         unknownIds: result.skipped,
         // The human grabbed these mid-move and the agent let go. Leave them be.
         yieldedToHuman: result.yieldedToHuman,
+        // Unrelated notes that were sitting where the group had to go.
+        nudgedAside: result.nudgedAside,
         ...(result.yieldedToHuman.length > 0
           ? {
               note:
@@ -188,7 +191,7 @@ export const buildTools = (): ToolDefinition[] => [
         to: String(l?.to ?? ''),
         label: String(l?.label ?? ''),
       }));
-      const result = await findAndLink(criterion, links);
+      const result = await withAgentBody(() => findAndLink(criterion, links));
       return { created: result.created, skipped: result.skipped.length, criterion };
     },
   },
@@ -213,7 +216,7 @@ export const buildTools = (): ToolDefinition[] => [
       const text = String(args?.text ?? '').trim();
       if (!text) throw new Error('text is required');
       const nodeId = typeof args?.nodeId === 'string' ? args.nodeId : undefined;
-      return annotateScene(text, nodeId);
+      return withAgentBody(() => annotateScene(text, nodeId));
     },
   },
 
@@ -242,7 +245,7 @@ export const buildTools = (): ToolDefinition[] => [
       const summary = String(args?.summary ?? '').trim();
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
       if (!summary) throw new Error('summary is required');
-      return summarizeCluster(nodeIds, summary);
+      return withAgentBody(() => summarizeCluster(nodeIds, summary));
     },
   },
 
@@ -270,7 +273,7 @@ export const buildTools = (): ToolDefinition[] => [
       if (texts.length === 0) throw new Error('texts must not be empty');
       if (texts.length > 12) throw new Error('add at most 12 notes at a time');
       const near = typeof args?.near === 'string' ? args.near : undefined;
-      return addNotes(texts, near);
+      return withAgentBody(() => addNotes(texts, near));
     },
   },
 
@@ -318,7 +321,7 @@ export const buildTools = (): ToolDefinition[] => [
         nodeIds: asStringArray(g?.nodeIds, 'groups[].nodeIds'),
         layout: g?.layout ? asLayout(g.layout) : undefined,
       }));
-      const result = await reorganizeBoard(groups, rationale);
+      const result = await withAgentBody(() => reorganizeBoard(groups, rationale));
       return result.approved
         ? result
         : { ...result, message: 'The human declined. Do not retry without new reasoning.' };

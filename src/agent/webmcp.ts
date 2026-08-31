@@ -97,11 +97,20 @@ export const registerTools = (tools: ToolDefinition[]): (() => void) => {
     return () => {};
   }
 
-  try {
-    if (transport === 'provideContext') {
+  const registered: string[] = [];
+
+  if (transport === 'provideContext') {
+    try {
       target.provideContext({ tools: instrumented });
-    } else {
-      for (const tool of instrumented) {
+      registered.push(...instrumented.map((t) => t.name));
+    } catch (error) {
+      console.error('[webmcp] provideContext failed', error);
+    }
+  } else {
+    // Register one at a time: a host that rejects a single field should cost us
+    // that one tool, not the whole integration.
+    for (const tool of instrumented) {
+      try {
         target.registerTool(
           {
             name: tool.name,
@@ -112,17 +121,18 @@ export const registerTools = (tools: ToolDefinition[]): (() => void) => {
           },
           { signal: controller.signal },
         );
+        registered.push(tool.name);
+      } catch (error) {
+        console.error(`[webmcp] could not register ${tool.name}`, error);
       }
     }
-    useHostStore.getState().setHost({
-      transport,
-      connected: true,
-      registered: instrumented.map((t) => t.name),
-    });
-  } catch (error) {
-    console.error('[webmcp] registration failed', error);
-    useHostStore.getState().setHost({ transport, connected: false, registered: [] });
   }
+
+  useHostStore.getState().setHost({
+    transport,
+    connected: registered.length > 0,
+    registered: registered.length > 0 ? registered : instrumented.map((t) => t.name),
+  });
 
   return () => controller.abort();
 };

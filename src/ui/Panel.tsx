@@ -83,9 +83,12 @@ export const Panel = ({ tools, open }: Props) => {
                 </>
               ) : (
                 <>
-                  No WebMCP host in this browser. These buttons call the same registered tool
-                  handlers a host would call — they read <code>get_scene</code>, pick note ids from
-                  the text, and invoke the tool. <strong>Keep dragging notes while one runs.</strong>
+                  No WebMCP host in this browser. Open this page in ChatGPT's in-app browser, or
+                  in Chrome with <code>chrome://flags/#enable-webmcp-testing</code> enabled, and the
+                  agent can drive it directly. Meanwhile these buttons call the same registered
+                  handlers a host would call — they read <code>get_scene</code>, pick note ids out
+                  of the text, and invoke the tool.{' '}
+                  <strong>Keep dragging notes while one runs.</strong>
                 </>
               )}
             </p>

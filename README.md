@@ -92,6 +92,22 @@ one's live JSON Schema.
 | `reorganize_board` | **gated** | Restructure everything at once. Asks the human first, and takes no for an answer. |
 | `undo_last_agent_action` | write | The agent reverts its own last change. |
 
+Two details in the tool contract are worth calling out, because they are where
+co-presence stops being a demo and starts being a protocol:
+
+- **`yieldedToHuman`** — if you grab a note the agent is carrying, it lets go, and the
+  tool result names that note back to the model with *"the human took those notes while
+  you were moving them… do not move them back unless asked."* The agent finds out it was
+  interrupted, and by whom.
+- **`nudgedAside`** — a group laid out in place can land on notes that weren't part of
+  it. The agent sweeps those just clear (never one you're holding) and reports which,
+  so the board is never left overlapping and the model knows what else it disturbed.
+
+**One body, one action.** A host may fire two write tools concurrently. Both would drive
+the same cursor, and one call's animation promise would be dropped and never settle —
+hanging that tool call forever. Actions therefore queue through `withAgentBody`, while
+`get_scene` never queues: the agent can always look at the board, even mid-move.
+
 ### The one confirmation beat
 
 WebMCP has no standardised elicitation call today, so the page owns the gate. The tool
