@@ -63,7 +63,8 @@ interface NodeTween {
   toY: number;
   start: number;
   duration: number;
-  resolve: () => void;
+  /** true when the note reached its target, false when the human took it. */
+  resolve: (completed: boolean) => void;
 }
 
 const nodeTweens = new Map<string, NodeTween>();
@@ -80,9 +81,11 @@ const step = (now: number): void => {
   const grip = new Set(useSceneStore.getState().humanGrip);
   const finished: NodeTween[] = [];
 
+  const stolen = new Set<string>();
   for (const tween of nodeTweens.values()) {
     // The human took this note. Yield it immediately and permanently.
     if (grip.has(tween.id)) {
+      stolen.add(tween.id);
       finished.push(tween);
       continue;
     }
@@ -100,7 +103,7 @@ const step = (now: number): void => {
   }
   for (const tween of finished) {
     nodeTweens.delete(tween.id);
-    tween.resolve();
+    tween.resolve(!stolen.has(tween.id));
   }
 
   if (cursorFrame && !cursorFrame(now)) cursorFrame = null;
@@ -143,23 +146,26 @@ const ensureLoop = (): void => {
   ensureWatchdog();
 };
 
-/** Tween one node to a target position. Resolves when it lands (or is stolen). */
+/**
+ * Tween one note to a target. Resolves true when it lands, false when the human
+ * grabbed it mid-flight and the agent let go.
+ */
 export const tweenNodeTo = (
   id: string,
   toX: number,
   toY: number,
   duration = 460,
-): Promise<void> => {
+): Promise<boolean> => {
   const node = useSceneStore.getState().getNode(id);
-  if (!node) return Promise.resolve();
+  if (!node) return Promise.resolve(false);
 
   const existing = nodeTweens.get(id);
   if (existing) {
     nodeTweens.delete(id);
-    existing.resolve();
+    existing.resolve(false);
   }
 
-  return new Promise<void>((resolve) => {
+  return new Promise<boolean>((resolve) => {
     nodeTweens.set(id, {
       id,
       fromX: node.x,

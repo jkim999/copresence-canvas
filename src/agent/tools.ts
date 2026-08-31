@@ -132,6 +132,15 @@ export const buildTools = (): ToolDefinition[] => [
         regionId: result.regionId,
         label: result.label,
         unknownIds: result.skipped,
+        // The human grabbed these mid-move and the agent let go. Leave them be.
+        yieldedToHuman: result.yieldedToHuman,
+        ...(result.yieldedToHuman.length > 0
+          ? {
+              note:
+                'The human took those notes while you were moving them, so they are ' +
+                'where the human put them. Do not move them back unless asked.',
+            }
+          : {}),
       };
     },
   },

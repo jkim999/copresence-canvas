@@ -18,6 +18,7 @@ import { useSceneStore } from '../state/sceneStore';
 import type { SceneNode } from '../state/types';
 import { NoteNode, PROVENANCE_MS, type NoteData } from './NoteNode';
 import { AgentCursor } from './AgentCursor';
+import { HumanCursor } from './HumanCursor';
 import { AnnotationLayer, RegionLayer } from './Overlays';
 import { useTick } from './useTick';
 
@@ -190,6 +191,7 @@ export const Canvas = () => {
         <AnnotationLayer />
         <AgentCursor />
       </ReactFlow>
+      <HumanCursor />
     </div>
   );
 };

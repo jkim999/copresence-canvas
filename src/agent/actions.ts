@@ -47,17 +47,24 @@ export interface CursorThroughOptions {
   onVisit?: (node: SceneNode) => void;
 }
 
+export interface CursorThroughResult {
+  /** notes that actually reached their target. */
+  moved: number;
+  /** notes the human grabbed mid-flight — the agent let go of these. */
+  yieldedToHuman: string[];
+}
+
 export const animateAgentCursorThrough = async (
   nodeIds: string[],
   options: CursorThroughOptions = {},
-): Promise<number> => {
+): Promise<CursorThroughResult> => {
   const { targets, speed = 1.7, grabPause = 55, carryDuration = 440, onVisit } = options;
   const nodes = resolveNodes(nodeIds);
-  if (nodes.length === 0) return 0;
+  if (nodes.length === 0) return { moved: 0, yieldedToHuman: [] };
 
   const path = visitOrder(nodes, cursorPoint());
-  const carries: Promise<void>[] = [];
-  let touched = 0;
+  const carries: Promise<{ id: string; completed: boolean }>[] = [];
+  let visitedWithoutTarget = 0;
 
   for (const node of path) {
     const live = useSceneStore.getState().getNode(node.id);
@@ -68,16 +75,26 @@ export const animateAgentCursorThrough = async (
     await wait(grabPause);
     const target = targets?.[node.id];
     if (target) {
-      // Not awaited: the node travels while the cursor moves to the next one.
-      carries.push(tweenNodeTo(node.id, target.x, target.y, carryDuration));
+      // Not awaited: the note travels while the cursor moves to the next one.
+      carries.push(
+        tweenNodeTo(node.id, target.x, target.y, carryDuration).then((completed) => ({
+          id: node.id,
+          completed,
+        })),
+      );
+    } else {
+      visitedWithoutTarget += 1;
     }
-    touched += 1;
     setCursorMode('travelling');
   }
 
-  await Promise.all(carries);
+  const settled = await Promise.all(carries);
   hideCursor();
-  return touched;
+  const yieldedToHuman = settled.filter((c) => !c.completed).map((c) => c.id);
+  return {
+    moved: settled.filter((c) => c.completed).length + visitedWithoutTarget,
+    yieldedToHuman,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -90,6 +107,7 @@ export interface ArrangeResult {
   regionId: string | null;
   label: string | null;
   skipped: string[];
+  yieldedToHuman: string[];
 }
 
 export const arrangeRegion = async (
@@ -101,7 +119,7 @@ export const arrangeRegion = async (
   const nodes = resolveNodes(nodeIds);
   const skipped = nodeIds.filter((id) => !nodes.some((n) => n.id === id));
   if (nodes.length === 0) {
-    return { moved: 0, layout, regionId: null, label: label ?? null, skipped };
+    return { moved: 0, layout, regionId: null, label: label ?? null, skipped, yieldedToHuman: [] };
   }
 
   store.snapshot(label ? `Arrange "${label}" as ${layout}` : `Arrange ${nodes.length} notes as ${layout}`, 'agent');
@@ -112,7 +130,7 @@ export const arrangeRegion = async (
     nodes.map((n) => ({ id: n.id, x: raw[n.id].x, y: raw[n.id].y, w: n.w, h: n.h })),
   );
 
-  const moved = await animateAgentCursorThrough(nodeIds, { targets });
+  const { moved, yieldedToHuman } = await animateAgentCursorThrough(nodeIds, { targets });
 
   let regionId: string | null = null;
   if (label) {
@@ -123,7 +141,7 @@ export const arrangeRegion = async (
     regionId = region.id;
   }
 
-  return { moved, layout, regionId, label: label ?? null, skipped };
+  return { moved, layout, regionId, label: label ?? null, skipped, yieldedToHuman };
 };
 
 // ---------------------------------------------------------------------------
@@ -337,12 +355,13 @@ export const reorganizeBoard = async (
       };
     }
 
-    moved += await animateAgentCursorThrough(block.group.nodeIds, {
+    const outcome = await animateAgentCursorThrough(block.group.nodeIds, {
       targets,
       speed: 2.6,
       grabPause: 18,
       carryDuration: 430,
     });
+    moved += outcome.moved;
 
     useSceneStore.getState().upsertRegion(
       {
