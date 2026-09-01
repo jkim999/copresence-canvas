@@ -1,9 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
 import { useHostStore, type ToolDefinition } from '../agent/webmcp';
-import { RECIPES } from '../agent/recipes';
+import { RECIPES, RECIPE_GROUPS, type Recipe } from '../agent/recipes';
+import {
+  IconActivity,
+  IconArrow,
+  IconConsole,
+  IconLock,
+  IconRunning,
+  IconTools,
+} from './icons';
 
-type Tab = 'agent' | 'tools' | 'activity';
+export type Tab = 'console' | 'tools' | 'activity';
+
+export const TABS: { id: Tab; label: string; Icon: typeof IconConsole }[] = [
+  { id: 'console', label: 'Console', Icon: IconConsole },
+  { id: 'tools', label: 'Tools', Icon: IconTools },
+  { id: 'activity', label: 'Activity', Icon: IconActivity },
+];
 
 const time = (t: number) =>
   new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -16,11 +30,11 @@ const badgeFor = (tool: ToolDefinition): { text: string; cls: string } => {
 
 interface Props {
   tools: ToolDefinition[];
-  open: boolean;
+  tab: Tab;
+  onTab: (tab: Tab) => void;
 }
 
-export const Panel = ({ tools, open }: Props) => {
-  const [tab, setTab] = useState<Tab>('agent');
+export const Panel = ({ tools, tab, onTab }: Props) => {
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const connected = useHostStore((s) => s.connected);
@@ -28,6 +42,15 @@ export const Panel = ({ tools, open }: Props) => {
   const log = useSceneStore((s) => s.log);
   const pushLog = useSceneStore((s) => s.pushLog);
   const logEnd = useRef<HTMLDivElement>(null);
+
+  const shelves = useMemo(
+    () =>
+      RECIPE_GROUPS.map((group) => ({
+        group,
+        items: RECIPES.filter((r) => r.group === group),
+      })).filter((s) => s.items.length > 0),
+    [],
+  );
 
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -39,10 +62,9 @@ export const Panel = ({ tools, open }: Props) => {
     return tool.execute(args);
   };
 
-  const runRecipe = async (id: string) => {
-    const recipe = RECIPES.find((r) => r.id === id);
-    if (!recipe || running) return;
-    setRunning(id);
+  const runRecipe = async (recipe: Recipe) => {
+    if (running) return;
+    setRunning(recipe.id);
     setError(null);
     try {
       await recipe.run(call);
@@ -55,86 +77,98 @@ export const Panel = ({ tools, open }: Props) => {
     }
   };
 
-  if (!open) return <aside className="panel collapsed" />;
-
   return (
-    <aside className="panel">
-      <div className="panel-tabs">
-        {(['agent', 'tools', 'activity'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            className={`panel-tab ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
-          >
-            {t === 'agent' ? 'Agent console' : t === 'tools' ? `Tools · ${tools.length}` : 'Activity'}
-          </button>
-        ))}
+    <aside className="panel chrome-surface" aria-label="Agent console">
+      <div className="tabs">
+        <div className="tablist" role="tablist">
+          {TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? 'active' : ''}
+              onClick={() => onTab(id)}
+            >
+              <Icon size={14} />
+              {label}
+              {id === 'tools' && <span className="n">{tools.length}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="panel-body">
-        {tab === 'agent' && (
+        {tab === 'console' && (
           <>
-            <p className="hint">
+            <p className="lede">
               {connected ? (
                 <>
-                  A WebMCP host is connected — just ask it, out loud, to reorganise the board. These
-                  buttons call the <em>same</em> registered handlers, so you can drive the agent
-                  without a model in the loop.
+                  A host is connected — ask it out loud to reorganise the board. These buttons call
+                  the same registered handlers, so you can drive the agent with no model in the
+                  loop. <strong>Keep dragging notes while one runs.</strong>
                 </>
               ) : (
                 <>
-                  No WebMCP host in this browser. Open this page in ChatGPT's in-app browser, or
-                  in Chrome with <code>chrome://flags/#enable-webmcp-testing</code> enabled, and the
-                  agent can drive it directly. Meanwhile these buttons call the same registered
-                  handlers a host would call — they read <code>get_scene</code>, pick note ids out
-                  of the text, and invoke the tool.{' '}
-                  <strong>Keep dragging notes while one runs.</strong>
+                  No WebMCP host here, so these buttons call the same handlers a host would.{' '}
+                  <strong>Keep dragging notes while one runs.</strong> To hand the board to a real
+                  agent, open it in ChatGPT's in-app browser, or in Chrome with:
+                  <code>chrome://flags/#enable-webmcp-testing</code>
                 </>
               )}
             </p>
 
-            <div className="section">
-              <h3 className="section-title">Ask the agent to…</h3>
-              {RECIPES.map((r) => (
-                <button
-                  key={r.id}
-                  className="recipe"
-                  onClick={() => runRecipe(r.id)}
-                  disabled={Boolean(running)}
-                >
-                  <strong>
-                    {running === r.id ? '● ' : ''}
-                    {r.title}
-                  </strong>
-                  <span>{r.blurb}</span>
-                  <span className="tool">{r.tool}</span>
-                </button>
-              ))}
-              {error && (
-                <p className="hint" style={{ color: 'var(--danger)' }}>
-                  {error}
-                </p>
-              )}
-            </div>
+            {shelves.map(({ group, items }) => (
+              <div className="group" key={group}>
+                <h3 className="group-title">{group}</h3>
+                {items.map((r) => (
+                  <button
+                    key={r.id}
+                    className={`recipe ${running === r.id ? 'running' : ''}`}
+                    onClick={() => runRecipe(r)}
+                    disabled={Boolean(running)}
+                  >
+                    <span className="head">
+                      <strong>{r.title}</strong>
+                      {running === r.id ? (
+                        <span className="spin">
+                          <IconRunning />
+                        </span>
+                      ) : (
+                        <span className="go">
+                          <IconArrow />
+                        </span>
+                      )}
+                    </span>
+                    <p>{r.blurb}</p>
+                    <code className={r.id === 'reorg' ? 'gated' : ''}>
+                      {r.id === 'reorg' && <IconLock size={10} />}
+                      {r.tool}
+                    </code>
+                  </button>
+                ))}
+              </div>
+            ))}
+
+            {error && <p className="notice">{error}</p>}
           </>
         )}
 
         {tab === 'tools' && (
           <>
-            <p className="hint">
-              Registered on this page via{' '}
-              <code>document.modelContext.registerTool</code>. Every handler mutates the same
-              in-memory scene the canvas renders — there is no server holding this state.
+            <p className="lede">
+              Registered on this page through <code>document.modelContext.registerTool</code>. Every
+              handler mutates the same in-memory scene the canvas renders — no server holds this
+              state.
             </p>
             {tools.map((tool) => {
               const badge = badgeFor(tool);
               return (
-                <details className="tool-card" key={tool.name}>
+                <details className="tool" key={tool.name}>
                   <summary>
                     {tool.name}
                     <span className={`badge ${badge.cls}`}>{badge.text}</span>
                   </summary>
-                  <div className="tool-desc">{tool.description}</div>
+                  <div className="desc">{tool.description}</div>
                   <pre>{JSON.stringify(tool.inputSchema, null, 2)}</pre>
                 </details>
               );
@@ -144,20 +178,20 @@ export const Panel = ({ tools, open }: Props) => {
 
         {tab === 'activity' && (
           <>
-            <div className="section">
-              <h3 className="section-title">Tool calls</h3>
+            <div className="group">
+              <h3 className="group-title">Tool calls</h3>
               {calls.length === 0 ? (
                 <p className="empty">
-                  No tool calls yet.
+                  Nothing has been called yet.
                   <br />
-                  Run something from the agent console.
+                  Run something from the console.
                 </p>
               ) : (
                 [...calls].reverse().map((c) => (
-                  <div className="call-row" key={c.id}>
-                    <span className="name">{c.tool}</span>
-                    <span className="time" style={{ float: 'right', color: '#4b5265', fontSize: 10 }}>
-                      {time(c.at)}
+                  <div className="call" key={c.id}>
+                    <span className="row">
+                      <span className="name">{c.tool}</span>
+                      <span className="t">{time(c.at)}</span>
                     </span>
                     <pre>{JSON.stringify(c.args, null, 1)}</pre>
                     {c.error ? (
@@ -172,15 +206,21 @@ export const Panel = ({ tools, open }: Props) => {
               )}
             </div>
 
-            <div className="section">
-              <h3 className="section-title">Board history</h3>
-              {log.map((entry) => (
-                <div className={`log-row ${entry.by}`} key={entry.id}>
-                  <span className="who">{entry.by}</span>
-                  <span className="body">{entry.text}</span>
-                  <span className="time">{time(entry.at)}</span>
-                </div>
-              ))}
+            <div className="group">
+              <h3 className="group-title">Board history</h3>
+              {log.length === 0 ? (
+                <p className="empty">Every change either of you makes lands here.</p>
+              ) : (
+                log.map((entry) => (
+                  <div className={`log ${entry.by}`} key={entry.id}>
+                    <span className="who">
+                      <i />
+                    </span>
+                    <span className="body">{entry.text}</span>
+                    <span className="t">{time(entry.at)}</span>
+                  </div>
+                ))
+              )}
               <div ref={logEnd} />
             </div>
           </>

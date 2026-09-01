@@ -1,4 +1,5 @@
 import type { Scene, SceneNode } from '../state/types';
+import { PAPER } from './palette';
 
 /**
  * A messy, realistic research-synthesis board: interview quotes, metrics,
@@ -7,43 +8,43 @@ import type { Scene, SceneNode } from '../state/types';
  * an agent can physically impose structure on it while you keep working.
  */
 const NOTES: readonly { text: string; color: string }[] = [
-  // interview evidence (warm)
-  { text: '"I gave up at the workspace-name step."', color: '#fff1e7' },
-  { text: '"Didn\'t know what a workspace even was."', color: '#fff1e7' },
-  { text: '"The email never arrived, I tried twice."', color: '#fff1e7' },
-  { text: '"I wanted to poke around before signing up."', color: '#fff1e7' },
-  { text: '"Asked for my team size before showing me anything."', color: '#fff1e7' },
-  { text: '"Took a screenshot to send to my manager."', color: '#fff1e7' },
+  // interview evidence
+  { text: '"I gave up at the workspace-name step."', color: PAPER.quote },
+  { text: '"Didn\'t know what a workspace even was."', color: PAPER.quote },
+  { text: '"The email never arrived, I tried twice."', color: PAPER.quote },
+  { text: '"I wanted to poke around before signing up."', color: PAPER.quote },
+  { text: '"Asked for my team size before showing me anything."', color: PAPER.quote },
+  { text: '"Took a screenshot to send to my manager."', color: PAPER.quote },
 
-  // quantitative (cool)
-  { text: 'Signup → activation down 31% QoQ', color: '#e8f1ff' },
-  { text: '62% of drop-off happens on step 3 of 5', color: '#e8f1ff' },
-  { text: 'Mobile completion 19%, desktop 54%', color: '#e8f1ff' },
-  { text: 'Median time-to-first-value: 11m 40s', color: '#e8f1ff' },
-  { text: 'Verification email p95 delivery: 4m 12s', color: '#e8f1ff' },
-  { text: 'Support tickets tagged "onboarding" +2.4x', color: '#e8f1ff' },
+  // quantitative
+  { text: 'Signup → activation down 31% QoQ', color: PAPER.metric },
+  { text: '62% of drop-off happens on step 3 of 5', color: PAPER.metric },
+  { text: 'Mobile completion 19%, desktop 54%', color: PAPER.metric },
+  { text: 'Median time-to-first-value: 11m 40s', color: PAPER.metric },
+  { text: 'Verification email p95 delivery: 4m 12s', color: PAPER.metric },
+  { text: 'Support tickets tagged "onboarding" +2.4x', color: PAPER.metric },
 
-  // timeline events (neutral)
-  { text: 'Mar 3 — new signup flow ships', color: '#f1f0ee' },
-  { text: 'Mar 11 — email provider migration', color: '#f1f0ee' },
-  { text: 'Mar 24 — team-size question added', color: '#f1f0ee' },
-  { text: 'Apr 2 — mobile web redesign', color: '#f1f0ee' },
-  { text: 'Apr 15 — first conversion alert fires', color: '#f1f0ee' },
-  { text: 'Apr 28 — research sprint kicks off', color: '#f1f0ee' },
+  // timeline events
+  { text: 'Mar 3 — new signup flow ships', color: PAPER.event },
+  { text: 'Mar 11 — email provider migration', color: PAPER.event },
+  { text: 'Mar 24 — team-size question added', color: PAPER.event },
+  { text: 'Apr 2 — mobile web redesign', color: PAPER.event },
+  { text: 'Apr 15 — first conversion alert fires', color: PAPER.event },
+  { text: 'Apr 28 — research sprint kicks off', color: PAPER.event },
 
-  // hypotheses (green)
-  { text: 'H1: Step 3 asks for data users don\'t have yet', color: '#eaf7ee' },
-  { text: 'H2: Email deliverability regressed post-migration', color: '#eaf7ee' },
-  { text: 'H3: Mobile layout hides the primary CTA', color: '#eaf7ee' },
-  { text: 'H4: No way to preview value before committing', color: '#eaf7ee' },
+  // hypotheses
+  { text: 'H1: Step 3 asks for data users don\'t have yet', color: PAPER.hypothesis },
+  { text: 'H2: Email deliverability regressed post-migration', color: PAPER.hypothesis },
+  { text: 'H3: Mobile layout hides the primary CTA', color: PAPER.hypothesis },
+  { text: 'H4: No way to preview value before committing', color: PAPER.hypothesis },
 
-  // proposed actions (violet)
-  { text: 'Defer team size to post-activation', color: '#f3ecff' },
-  { text: 'Add magic-link fallback for verification', color: '#f3ecff' },
-  { text: 'Sticky CTA on mobile step 3', color: '#f3ecff' },
-  { text: 'Ship a sandbox demo workspace', color: '#f3ecff' },
-  { text: 'Instrument per-field abandonment', color: '#f3ecff' },
-  { text: 'Weekly activation dashboard for the team', color: '#f3ecff' },
+  // proposed actions
+  { text: 'Defer team size to post-activation', color: PAPER.action },
+  { text: 'Add magic-link fallback for verification', color: PAPER.action },
+  { text: 'Sticky CTA on mobile step 3', color: PAPER.action },
+  { text: 'Ship a sandbox demo workspace', color: PAPER.action },
+  { text: 'Instrument per-field abandonment', color: PAPER.action },
+  { text: 'Weekly activation dashboard for the team', color: PAPER.action },
 ];
 
 /** Deterministic PRNG so the board looks identical on every load and in demos. */

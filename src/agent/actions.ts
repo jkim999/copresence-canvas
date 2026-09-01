@@ -1,4 +1,5 @@
 import { useSceneStore } from '../state/sceneStore';
+import { PAPER } from '../data/palette';
 import type { LayoutKind, SceneNode } from '../state/types';
 import {
   applyLayout,
@@ -325,7 +326,7 @@ export const summarizeCluster = async (
   await wait(140);
 
   const summaryNode = useSceneStore.getState().addNode(
-    { text: summary, x: c.x - 110, y: c.y - 48, color: '#e6f0ff', kind: 'summary' },
+    { text: summary, x: c.x - 110, y: c.y - 48, color: PAPER.summary, kind: 'summary' },
     'agent',
   );
 
@@ -475,7 +476,7 @@ export const addNotes = async (
     const x = baseX + (i % 2) * 216;
     const y = baseY + Math.floor(i / 2) * 108;
     await moveCursorTo(x + 88, y + 42, { speed: 1.6, mode: 'writing' });
-    const node = useSceneStore.getState().addNode({ text: texts[i], x, y, color: '#fffbe6' }, 'agent');
+    const node = useSceneStore.getState().addNode({ text: texts[i], x, y, color: PAPER.agentNote }, 'agent');
     created.push(node.id);
     await wait(110);
   }

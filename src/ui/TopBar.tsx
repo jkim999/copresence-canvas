@@ -1,5 +1,13 @@
 import { useSceneStore } from '../state/sceneStore';
 import { useHostStore } from '../agent/webmcp';
+import {
+  IconPanelClose,
+  IconPanelOpen,
+  IconProvenance,
+  IconReset,
+  IconUndo,
+  IconUndoAgent,
+} from './icons';
 
 interface Props {
   panelOpen: boolean;
@@ -20,51 +28,85 @@ export const TopBar = ({ panelOpen, onTogglePanel }: Props) => {
   const hasAgentAction = history.some((h) => h.by === 'agent');
 
   return (
-    <header className="topbar">
+    <header className="topbar chrome-surface">
       <div className="brand">
-        <span className="dot" />
+        <span className="mark">
+          <i />
+          <i />
+        </span>
         Co-Presence Canvas
-        <small>a board you and your agent draw on at the same time</small>
+        <em>one board, two hands</em>
       </div>
 
       <div className="topbar-spacer" />
 
       <span
-        className={`pill ${connected ? 'live' : 'local'}`}
+        className={`status ${connected ? 'live' : ''}`}
         title={
           connected
-            ? `${registered.length} tools registered via ${transport}`
-            : 'No WebMCP host detected — the built-in agent console drives the same tool handlers.'
+            ? `${registered.length} tools registered through ${transport}`
+            : 'No WebMCP host detected — the built-in console drives the same tool handlers.'
         }
       >
         <span className="led" />
         {connected ? (
           <>
-            WebMCP live · <code>{transport}</code> · {registered.length} tools
+            <span className="long">WebMCP live · </span>
+            <code>{transport}</code>
           </>
         ) : (
-          <>No WebMCP host · {registered.length} tools ready</>
+          <span className="long">No WebMCP host</span>
         )}
+        <span className="count">
+          {registered.length} tool{registered.length === 1 ? '' : 's'}
+        </span>
       </span>
 
       <button
         className={`btn ${showProvenance ? 'on' : ''}`}
         onClick={toggleProvenance}
-        title="Tint anything the agent touched recently"
+        aria-pressed={showProvenance}
+        title="Ring anything the agent touched in the last few seconds"
       >
-        Provenance
+        <IconProvenance />
+        <span className="label">Provenance</span>
       </button>
-      <button className="btn" onClick={() => undoLastAgentAction()} disabled={!hasAgentAction}>
-        Undo agent
+      <button
+        className="btn"
+        onClick={() => undoLastAgentAction()}
+        disabled={!hasAgentAction}
+        title="Revert the agent's most recent action, leaving yours alone"
+      >
+        <IconUndoAgent />
+        <span className="label">Undo agent</span>
       </button>
-      <button className="btn" onClick={() => undoLast()} disabled={history.length === 0}>
-        Undo
+      <button
+        className="btn icon"
+        onClick={() => undoLast()}
+        disabled={history.length === 0}
+        title="Undo the last change by either of you"
+        aria-label="Undo the last change"
+      >
+        <IconUndo />
       </button>
-      <button className="btn ghost" onClick={resetScene} title="Restore the starting board">
-        Reset
+      <button
+        className="btn icon"
+        onClick={resetScene}
+        title="Restore the starting board"
+        aria-label="Reset the board"
+      >
+        <IconReset />
       </button>
-      <button className="btn" onClick={onTogglePanel}>
-        {panelOpen ? 'Hide panel' : 'Show panel'}
+
+      <span className="sep" />
+
+      <button
+        className="btn icon"
+        onClick={onTogglePanel}
+        title={panelOpen ? 'Collapse the console' : 'Open the console'}
+        aria-label={panelOpen ? 'Collapse the console' : 'Open the console'}
+      >
+        {panelOpen ? <IconPanelClose /> : <IconPanelOpen />}
       </button>
     </header>
   );

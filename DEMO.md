@@ -22,8 +22,8 @@ the URL, so the first twenty seconds have to carry the whole idea.
 Start the agent on **Cluster by kind of evidence** (or ask the host: *"group the
 interview quotes, the metrics and the hypotheses into three clusters"*).
 
-The instant the violet cursor appears, **start dragging a note of your own and don't
-stop.** Both labelled cursors — violet **Agent**, blue **You** — are on screen at once,
+The instant the teal cursor appears, **start dragging a note of your own and don't
+stop.** Both labelled cursors — teal **Agent**, terracotta **You** — are on screen at once,
 both moving different notes. Let it play silently. That image is the pitch.
 
 ### 0:20 – 0:40 — the negative case. Speak it plainly.
@@ -47,7 +47,7 @@ all interleaved.
    Point out that it is *actually chronological*, not just spatial: the page parses
    `Mar 3`, `Apr 15` out of the note text.
 3. **Link** — labelled edges drawn from evidence to the hypothesis it supports.
-4. **Provenance** — everything the agent touched is ringed in violet and stamped.
+4. **Provenance** — everything the agent touched is ringed in teal and stamped.
    Toggle it off and on.
 5. **Undo agent** — one click, the agent's last move is gone and yours are untouched.
 6. **The consent beat** — ask for the whole board. This is the one destructive action,

@@ -21,6 +21,15 @@ import { AgentCursor } from './AgentCursor';
 import { HumanCursor } from './HumanCursor';
 import { AnnotationLayer, RegionLayer } from './Overlays';
 import { useTick } from './useTick';
+import { useCursorStore } from '../agent/motion';
+import { IconRunning } from '../ui/icons';
+
+const DOING: Record<string, string> = {
+  travelling: 'Agent is moving notes',
+  grabbing: 'Agent is picking up a note',
+  writing: 'Agent is writing',
+  thinking: 'Agent is reading the board',
+};
 
 const nodeTypes = { note: NoteNode };
 
@@ -48,6 +57,9 @@ export const Canvas = () => {
   const removeNodes = useSceneStore((s) => s.removeNodes);
   const snapshot = useSceneStore((s) => s.snapshot);
   const pushLog = useSceneStore((s) => s.pushLog);
+
+  const cursorVisible = useCursorStore((s) => s.visible);
+  const cursorMode = useCursorStore((s) => s.mode);
 
   const { screenToFlowPosition } = useReactFlow();
   const dragged = useRef<Set<string>>(new Set());
@@ -95,7 +107,7 @@ export const Canvas = () => {
         label: e.label,
         animated: e.lastEditedBy === 'agent' && Date.now() - e.editedAt < PROVENANCE_MS,
         className: e.lastEditedBy === 'agent' ? 'agent-edge' : '',
-        style: { stroke: e.lastEditedBy === 'agent' ? '#a78bfa' : '#4b5265' },
+        style: { stroke: e.lastEditedBy === 'agent' ? '#0e6e64' : '#a89f8d' },
       })),
     [scene.edges, now],
   );
@@ -177,21 +189,35 @@ export const Canvas = () => {
         nodesConnectable={false}
         deleteKeyCode={null}
       >
-        <Background variant={BackgroundVariant.Dots} gap={26} size={1.4} />
+        <Background variant={BackgroundVariant.Dots} gap={26} size={1.3} color="#cfc7b6" />
         <Controls showInteractive={false} position="bottom-right" />
         <MiniMap
           pannable
           zoomable
           position="top-right"
           style={{ width: 152, height: 104 }}
-          nodeColor={(n) => ((n.data as NoteData)?.fresh ? '#a78bfa' : '#3a4152')}
-          maskColor="rgba(11,13,18,.8)"
+          nodeColor={(n) => ((n.data as NoteData)?.fresh ? '#4fbfb0' : '#6d675c')}
+          maskColor="rgba(20,19,16,.55)"
         />
         <RegionLayer />
         <AnnotationLayer />
         <AgentCursor />
       </ReactFlow>
       <HumanCursor />
+
+      {cursorVisible && DOING[cursorMode] && (
+        <div className="banner" role="status">
+          <span className="spin">
+            <IconRunning />
+          </span>
+          {DOING[cursorMode]} <em>— keep dragging, you are not blocked</em>
+        </div>
+      )}
+
+      <div className="hints">
+        <kbd>double-click</kbd> the board to add a note · <kbd>double-click</kbd> a note to edit ·{' '}
+        <kbd>drag</kbd> anything, any time — even while the agent is working
+      </div>
     </div>
   );
 };

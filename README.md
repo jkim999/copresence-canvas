@@ -24,7 +24,7 @@ act **concurrently** with you, on the same objects, in the same coordinate space
 
 Co-Presence Canvas is built to make that difference visible in five seconds:
 
-> You are dragging a sticky note. At the same moment, a violet cursor labelled
+> You are dragging a sticky note. At the same moment, a teal cursor labelled
 > **Agent** walks across the board, picks up six other notes one by one, and lays them
 > out into a chronological timeline. Neither of you stops for the other.
 

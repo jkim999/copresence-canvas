@@ -37,11 +37,22 @@ const byCategory = (): Record<Category, { id: string; text: string }[]> => {
   return out;
 };
 
+/** Which shelf of the console a recipe sits on, in the order a user meets them. */
+export type RecipeGroup = 'perceive' | 'structure' | 'author' | 'whole board';
+
+export const RECIPE_GROUPS: readonly RecipeGroup[] = [
+  'perceive',
+  'structure',
+  'author',
+  'whole board',
+];
+
 export interface Recipe {
   id: string;
   title: string;
   blurb: string;
   tool: string;
+  group: RecipeGroup;
   run: (call: Call) => Promise<unknown>;
 }
 
@@ -51,6 +62,7 @@ export const RECIPES: Recipe[] = [
     title: 'Read the board',
     blurb: 'Pull every note as structured JSON — ids and text, no screenshot.',
     tool: 'get_scene',
+    group: 'perceive',
     run: (call) => call('get_scene', {}),
   },
   {
@@ -60,6 +72,7 @@ export const RECIPES: Recipe[] = [
       'Hold a note with your mouse, then press this. The agent checks what you are working ' +
       'on and writes what it saw onto the board — without touching your note.',
     tool: 'get_human_activity → annotate_scene',
+    group: 'perceive',
     run: async (call) => {
       const activity = (await call('get_human_activity', { sinceSeconds: 120 })) as {
         holdingRightNow: { id: string; text: string }[];
@@ -90,6 +103,7 @@ export const RECIPES: Recipe[] = [
     title: 'Build the timeline',
     blurb: 'Find every dated note and lay them out left-to-right in real chronological order.',
     tool: 'arrange_region',
+    group: 'structure',
     run: async (call) => {
       const groups = byCategory();
       if (groups.event.length < 2) throw new Error('No dated notes on the board.');
@@ -105,6 +119,7 @@ export const RECIPES: Recipe[] = [
     title: 'Cluster by kind of evidence',
     blurb: 'Separate interview quotes, metrics and hypotheses into three affinity clusters.',
     tool: 'arrange_region ×3',
+    group: 'structure',
     run: async (call) => {
       const groups = byCategory();
       const plan: [Category, string][] = [
@@ -132,6 +147,7 @@ export const RECIPES: Recipe[] = [
     title: 'Lay the actions out as a grid',
     blurb: 'Put every proposed action into an even grid so nothing hides behind anything else.',
     tool: 'arrange_region',
+    group: 'structure',
     run: async (call) => {
       const groups = byCategory();
       if (groups.action.length < 2) throw new Error('No action notes on the board.');
@@ -147,6 +163,7 @@ export const RECIPES: Recipe[] = [
     title: 'Link evidence to hypotheses',
     blurb: 'Read the text of every note and draw labelled edges from supporting evidence to each hypothesis.',
     tool: 'find_and_link',
+    group: 'structure',
     run: async (call) => {
       const groups = byCategory();
       const evidence = [...groups.quote, ...groups.metric];
@@ -180,6 +197,7 @@ export const RECIPES: Recipe[] = [
       'Two tools composing: link each hypothesis to the action that addresses it, then ' +
       'lay the whole thing out as a dependency hierarchy.',
     tool: 'find_and_link → arrange_region',
+    group: 'structure',
     run: async (call) => {
       const groups = byCategory();
       const KEYS: Record<string, RegExp> = {
@@ -214,6 +232,7 @@ export const RECIPES: Recipe[] = [
     title: 'Point out what is missing',
     blurb: 'Leave a floating comment on the board without moving a single note.',
     tool: 'annotate_scene',
+    group: 'author',
     run: async (call) => {
       const groups = byCategory();
       const target = groups.hypothesis[0] ?? groups.metric[0];
@@ -230,6 +249,7 @@ export const RECIPES: Recipe[] = [
     title: 'Collapse the quotes into one finding',
     blurb: 'Gather the interview quotes to a single point and replace them with one summary note.',
     tool: 'summarize_cluster',
+    group: 'author',
     run: async (call) => {
       const groups = byCategory();
       if (groups.quote.length < 2) throw new Error('No quotes left to collapse.');
@@ -244,6 +264,7 @@ export const RECIPES: Recipe[] = [
     title: 'Add the open questions',
     blurb: 'Write new notes onto the canvas for the gaps the board does not cover.',
     tool: 'add_notes',
+    group: 'author',
     run: (call) =>
       call('add_notes', {
         texts: [
@@ -258,6 +279,7 @@ export const RECIPES: Recipe[] = [
     title: 'Reorganise the entire board',
     blurb: 'The one destructive action — moves everything at once, so it asks you first.',
     tool: 'reorganize_board',
+    group: 'whole board',
     run: async (call) => {
       const groups = byCategory();
       const plan = [
@@ -280,6 +302,7 @@ export const RECIPES: Recipe[] = [
     title: 'Undo my last change',
     blurb: 'The agent reverts its own most recent action.',
     tool: 'undo_last_agent_action',
+    group: 'whole board',
     run: (call) => call('undo_last_agent_action', {}),
   },
 ];

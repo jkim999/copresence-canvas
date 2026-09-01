@@ -1,7 +1,8 @@
 import { ViewportPortal } from '@xyflow/react';
 import { useCursorStore } from '../agent/motion';
+import { PointerBody } from './Pointer';
 
-const LABELS: Record<string, string> = {
+const DOING: Record<string, string> = {
   travelling: 'moving',
   grabbing: 'picking up',
   writing: 'writing',
@@ -25,27 +26,19 @@ export const AgentCursor = () => {
           className="cursor-trail"
           style={{
             transform: `translate(${p.x}px, ${p.y}px)`,
-            opacity: ((i + 1) / trail.length) * 0.32,
+            opacity: ((i + 1) / trail.length) * 0.26,
           }}
         />
       ))}
-      <div
-        className={`agent-cursor ${mode}`}
-        style={{ transform: `translate(${x}px, ${y}px)` }}
-      >
-        <span className="halo" key={mode === 'grabbing' ? `g${Math.round(x)}${Math.round(y)}` : 'h'} />
-        <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
-          <path
-            d="M2 1.6 L2 18.4 L6.3 14.2 L9.1 20.4 L12.2 19 L9.4 12.9 L15.4 12.6 Z"
-            fill="#8b5cf6"
-            stroke="#fff"
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-        </svg>
+      <div className={`actor-cursor agent ${mode}`} style={{ transform: `translate(${x}px, ${y}px)` }}>
+        <span
+          className="halo"
+          key={mode === 'grabbing' ? `g${Math.round(x)}${Math.round(y)}` : 'h'}
+        />
+        <PointerBody actor="agent" />
         <span className="tag">
           {label}
-          {LABELS[mode] ? <em> · {LABELS[mode]}</em> : null}
+          {DOING[mode] ? <em> · {DOING[mode]}</em> : null}
         </span>
       </div>
     </ViewportPortal>

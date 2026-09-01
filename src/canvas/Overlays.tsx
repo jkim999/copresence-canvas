@@ -1,4 +1,5 @@
 import { ViewportPortal } from '@xyflow/react';
+import { IconDismiss } from '../ui/icons';
 import { useSceneStore } from '../state/sceneStore';
 import { boundsOf } from '../agent/layout';
 
@@ -48,10 +49,15 @@ export const AnnotationLayer = () => {
         const y = anchor ? anchor.y - 10 : a.y;
         return (
           <div key={a.id} className="annotation" style={{ transform: `translate(${x}px, ${y}px)` }}>
-            <span className="who">Agent note</span>
+            <span className="who">Agent</span>
             {a.text}
-            <button className="kill" onClick={() => removeAnnotation(a.id)} title="Dismiss">
-              ×
+            <button
+              className="kill"
+              onClick={() => removeAnnotation(a.id)}
+              title="Dismiss this note"
+              aria-label="Dismiss this note"
+            >
+              <IconDismiss />
             </button>
           </div>
         );

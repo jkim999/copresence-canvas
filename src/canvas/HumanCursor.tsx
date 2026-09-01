@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCursorStore } from '../agent/motion';
+import { PointerBody } from './Pointer';
 
 /**
  * A label for the human's own pointer, shown only while the agent is acting.
@@ -31,8 +32,12 @@ export const HumanCursor = () => {
   if (!agentActive || !point) return null;
 
   return (
-    <span className="human-tag" style={{ transform: `translate(${point.x}px, ${point.y}px)` }}>
-      You
-    </span>
+    <div
+      className="actor-cursor human human-cursor"
+      style={{ transform: `translate(${point.x}px, ${point.y}px)` }}
+    >
+      <PointerBody actor="human" />
+      <span className="tag">You</span>
+    </div>
   );
 };

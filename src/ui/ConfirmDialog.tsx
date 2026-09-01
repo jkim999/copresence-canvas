@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useConfirmStore } from '../agent/confirm';
 
 /**
@@ -9,13 +10,28 @@ import { useConfirmStore } from '../agent/confirm';
 export const ConfirmDialog = () => {
   const pending = useConfirmStore((s) => s.pending);
   const answer = useConfirmStore((s) => s.answer);
+
+  useEffect(() => {
+    if (!pending) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') answer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pending, answer]);
+
   if (!pending) return null;
 
   return (
-    <div className="scrim" onClick={() => answer(false)}>
-      <div className="dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">The agent is asking permission</div>
-        <h2>{pending.title}</h2>
+    <div className="scrim chrome-surface" onClick={() => answer(false)}>
+      <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gate-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="gate-title">{pending.title}</h2>
         <p>{pending.body}</p>
         {pending.detail && pending.detail.length > 0 && (
           <ul>
@@ -25,10 +41,10 @@ export const ConfirmDialog = () => {
           </ul>
         )}
         <div className="row">
-          <button className="btn ghost" onClick={() => answer(false)}>
+          <button className="btn quiet" onClick={() => answer(false)}>
             {pending.cancelLabel}
           </button>
-          <button className="btn primary" onClick={() => answer(true)} autoFocus>
+          <button className="btn solid" onClick={() => answer(true)} autoFocus>
             {pending.confirmLabel}
           </button>
         </div>
