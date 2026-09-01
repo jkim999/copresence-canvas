@@ -5,10 +5,12 @@ import { Canvas } from './canvas/Canvas';
 import { Panel, TABS, type Tab } from './ui/Panel';
 import { TopBar } from './ui/TopBar';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { ImportDialog } from './ui/ImportDialog';
 import { buildTools } from './agent/tools';
 import { exposeForConsole, instrument, registerTools } from './agent/webmcp';
 export const App = () => {
   const [panelOpen, setPanelOpen] = useState(true);
+  const [importOpen, setImportOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('console');
 
   // One instrumented set of handlers, shared by the WebMCP host, the in-page
@@ -28,7 +30,11 @@ export const App = () => {
 
   return (
     <div className="app">
-      <TopBar panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((v) => !v)} />
+      <TopBar
+        panelOpen={panelOpen}
+        onTogglePanel={() => setPanelOpen((v) => !v)}
+        onImport={() => setImportOpen(true)}
+      />
       <div className="workspace">
         <ReactFlowProvider>
           <Canvas />
@@ -47,6 +53,7 @@ export const App = () => {
         )}
 
       </div>
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <ConfirmDialog />
     </div>
   );

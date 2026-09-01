@@ -111,3 +111,24 @@ export const IconArrow = ({ size = 12 }: IconProps) => (
     <path d="M3.4 8h9.2M9.1 4.6 12.6 8l-3.5 3.4" />
   </svg>
 );
+
+export const IconImport = ({ size = 14 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M8 2.4v7.2" />
+    <path d="m5.2 6.9 2.8 2.7 2.8-2.7" />
+    <path d="M2.8 11.1v1.4a1.1 1.1 0 0 0 1.1 1.1h8.2a1.1 1.1 0 0 0 1.1-1.1v-1.4" />
+  </svg>
+);
+
+export const IconCopy = ({ size = 14 }: IconProps) => (
+  <svg {...base(size)}>
+    <rect x="5.8" y="5.8" width="7.4" height="7.4" rx="1.6" />
+    <path d="M10.2 3.4a1.6 1.6 0 0 0-1.6-1.6H4.4a1.6 1.6 0 0 0-1.6 1.6v4.2a1.6 1.6 0 0 0 1.6 1.6" />
+  </svg>
+);
+
+export const IconCheck = ({ size = 14 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="m3.2 8.4 3.1 3.1 6.5-6.9" />
+  </svg>
+);

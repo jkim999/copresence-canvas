@@ -113,6 +113,43 @@ the same cursor, and one call's animation promise would be dropped and never set
 hanging that tool call forever. Actions therefore queue through `withAgentBody`, while
 `get_scene` never queues: the agent can always look at the board, even mid-move.
 
+### The call ledger
+
+Motion alone cannot prove that a model decided anything — a scripted animation looks
+identical from the outside. So the agent's calls sit **on the board** while the work is
+still happening, with the arguments it actually chose:
+
+```
+get_scene()                                       → 28 notes · 4.3 KB · no screenshot
+arrange_region(nodeIds: [n_12, n_13, n_14, +3],
+               layout: "timeline_horizontal")     → moved 6 · timeline_horizontal
+```
+
+This is also where `yieldedToHuman` becomes visible rather than theoretical: grab a note
+mid-carry and the ledger reports `yielded 1 to you` on the very call you interrupted.
+
+**On honesty:** with a WebMCP host connected, a model chooses those ids and issues those
+calls itself. With no host present, the console's recipes substitute keyword heuristics
+for the model's judgement and then call the identical handlers — same code path, same
+ledger, no private back door. The header pill always says which of the two you are
+looking at.
+
+### Bring your own board, and take it with you
+
+The demo board proves the idea on a research-synthesis case; the two ends of the app are
+what make it useful on your own material.
+
+- **Your notes** — paste a retro, an interview transcript, a backlog. One line becomes
+  one note; list marks, checkboxes and markdown headings are stripped, duplicates are
+  dropped. Each note is coloured by what it looks like (quote, metric, dated event,
+  hypothesis, action) so every console recipe works on material it has never seen.
+- **Copy** — the organised board leaves as Markdown: groups as headings in the order the
+  eye reads them left to right, connections as prose, agent comments as block quotes, and
+  anything the agent wrote still attributed. Without it the agent's work is a nice
+  animation that dies on reload.
+
+Nothing is uploaded. Both directions run entirely in the page.
+
 ### The one confirmation beat
 
 WebMCP has no standardised elicitation call today, so the page owns the gate. The tool
@@ -138,11 +175,13 @@ npm run test     # geometry, chronology and the grip invariant
 npm run build    # production build to dist/
 ```
 
-`npm test` covers the parts where a silent regression would be invisible on screen:
-chronology inference, every layout's centring and totality, overlap relaxation,
-nearest-neighbour visiting — and the grip invariant itself, asserted at the store level
-(the agent must not move a held note, and must be able to move it again the moment the
-human lets go).
+`npm test` (52 tests) covers the parts where a silent regression would be invisible on
+screen: chronology inference, every layout's centring and totality, overlap relaxation,
+nearest-neighbour visiting, the grip invariant itself asserted at the store level (the
+agent must not move a held note, and must be able to move it again the moment the human
+lets go), import parsing, Markdown export, and the ledger's call formatting. One test
+pins the seeded demo board to its exact historical coordinates, so the board in the
+screenshots and the video cannot drift.
 
 ### Trying it with a real agent
 
@@ -181,13 +220,15 @@ src/
   state/        scene store — the single source of truth both actors mutate
   agent/
     webmcp.ts   host detection + registration + call instrumentation
-    tools.ts    the eight tool definitions and their JSON Schemas
+    tools.ts    the nine tool definitions and their JSON Schemas
     actions.ts  choreography: cursor travel, carry, gather, gate
     layout.ts   geometry for the four layouts, chronology inference, overlap relaxation
     motion.ts   one rAF loop driving every concurrent tween, plus the watchdog
     recipes.ts  scripted agent behaviours for the in-page console
+    callFormat.ts  renders a call compactly enough to sit on the board
   canvas/       React Flow wiring, sticky notes, agent cursor, regions, annotations
-  ui/           top bar, side panel, the consent dialog
+  data/         the seed board, note palette, import parsing, Markdown export
+  ui/           top bar, side panel, the call ledger, the consent and import dialogs
 ```
 
 Two functions carry the product:

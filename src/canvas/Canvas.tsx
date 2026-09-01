@@ -22,6 +22,7 @@ import { HumanCursor } from './HumanCursor';
 import { AnnotationLayer, RegionLayer } from './Overlays';
 import { useTick } from './useTick';
 import { useCursorStore } from '../agent/motion';
+import { Ledger } from '../ui/Ledger';
 import { IconRunning } from '../ui/icons';
 
 const DOING: Record<string, string> = {
@@ -61,12 +62,20 @@ export const Canvas = () => {
   const cursorVisible = useCursorStore((s) => s.visible);
   const cursorMode = useCursorStore((s) => s.mode);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const epoch = useSceneStore((s) => s.epoch);
+
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const dragged = useRef<Set<string>>(new Set());
 
   // Keep the provenance clock idle unless something is actually tinted.
   const hasAgentEdit = scene.nodes.some((n) => n.lastEditedBy === 'agent');
   const now = useTick(showProvenance && hasAgentEdit ? 700 : 0);
+
+  // A replaced board (reset, or the human's own notes) lands somewhere new.
+  useEffect(() => {
+    if (epoch === 0) return;
+    fitView({ padding: 0.16, duration: 420 });
+  }, [epoch, fitView]);
 
   const isFresh = useCallback(
     (n: SceneNode) =>
@@ -213,6 +222,8 @@ export const Canvas = () => {
           {DOING[cursorMode]} <em>— keep dragging, you are not blocked</em>
         </div>
       )}
+
+      <Ledger />
 
       <div className="hints">
         <kbd>double-click</kbd> the board to add a note · <kbd>double-click</kbd> a note to edit ·{' '}

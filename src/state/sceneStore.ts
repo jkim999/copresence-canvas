@@ -11,6 +11,7 @@ import type {
   SceneNode,
 } from './types';
 import { seedScene } from '../data/seed';
+import { sceneFromTexts } from '../data/importBoard';
 
 let counter = 0;
 export const uid = (prefix: string): string => {
@@ -36,6 +37,8 @@ interface SceneState {
   /** node ids the human is dragging right now — the agent must never fight these. */
   humanGrip: string[];
   showProvenance: boolean;
+  /** bumped whenever the whole board is replaced, so the canvas can refit. */
+  epoch: number;
 
   // --- snapshots / undo -------------------------------------------------
   snapshot: (label: string, by: Actor) => void;
@@ -69,6 +72,8 @@ interface SceneState {
   toggleProvenance: () => void;
   pushLog: (by: Actor | 'system', text: string) => void;
   resetScene: () => void;
+  /** Replace the board with the human's own material. */
+  loadTexts: (texts: string[]) => void;
 }
 
 const cloneScene = (s: Scene): Scene => ({
@@ -84,6 +89,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas ready.' }],
   humanGrip: [],
   showProvenance: true,
+  epoch: 0,
 
   snapshot: (label, by) =>
     set((s) => ({
@@ -288,11 +294,28 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })),
 
   resetScene: () =>
-    set({
+    set((s) => ({
       scene: seedScene(),
       history: [],
+      epoch: s.epoch + 1,
       log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas reset.' }],
-    }),
+    })),
+
+  loadTexts: (texts) =>
+    set((s) => ({
+      scene: sceneFromTexts(texts),
+      history: [],
+      humanGrip: [],
+      epoch: s.epoch + 1,
+      log: [
+        {
+          id: uid('log'),
+          at: Date.now(),
+          by: 'human',
+          text: `Loaded ${texts.length} of your own notes onto the board.`,
+        },
+      ],
+    })),
 }));
 
 /** Non-hook access for the WebMCP tool handlers, which run outside React. */

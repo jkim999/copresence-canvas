@@ -1,5 +1,5 @@
 import { useSceneStore } from '../state/sceneStore';
-import { chronoKey } from './layout';
+import { classify, type Category } from '../data/classify';
 import { wait } from './motion';
 
 /**
@@ -14,19 +14,7 @@ import { wait } from './motion';
 
 type Call = (name: string, args: unknown) => Promise<unknown>;
 
-export type Category = 'quote' | 'metric' | 'event' | 'hypothesis' | 'action';
-
-/** The same shallow reading a model does over `get_scene` text. */
-export const classify = (text: string): Category => {
-  const t = text.trim();
-  if (t.startsWith('"') || t.startsWith('“')) return 'quote';
-  if (/^h\d\s*[:.]/i.test(t)) return 'hypothesis';
-  if (chronoKey(t) !== null && /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t)) {
-    return 'event';
-  }
-  if (/\d+\s*%|p\d{2}\b|median|\d+(\.\d+)?x\b|qoq|↑|↓/i.test(t)) return 'metric';
-  return 'action';
-};
+export type { Category };
 
 const byCategory = (): Record<Category, { id: string; text: string }[]> => {
   const nodes = useSceneStore.getState().scene.nodes.filter((n) => n.kind === 'idea');

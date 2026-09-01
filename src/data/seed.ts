@@ -1,5 +1,6 @@
 import type { Scene, SceneNode } from '../state/types';
 import { PAPER } from './palette';
+import { scatter } from './scatter';
 
 /**
  * A messy, realistic research-synthesis board: interview quotes, metrics,
@@ -47,36 +48,22 @@ const NOTES: readonly { text: string; color: string }[] = [
   { text: 'Weekly activation dashboard for the team', color: PAPER.action },
 ];
 
-/** Deterministic PRNG so the board looks identical on every load and in demos. */
-const mulberry32 = (seed: number) => () => {
-  seed |= 0;
-  seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
 export const seedScene = (): Scene => {
-  const rand = mulberry32(20260903);
-  const nodes: SceneNode[] = NOTES.map((note, i) => {
-    // Poisson-ish scatter over a wide field, with jitter so nothing looks gridded.
-    const col = i % 6;
-    const row = Math.floor(i / 6);
-    return {
-      id: `n_${i.toString().padStart(2, '0')}`,
-      text: note.text,
-      x: Math.round(col * 236 + (rand() - 0.5) * 150),
-      y: Math.round(row * 190 + (rand() - 0.5) * 130),
-      w: 176,
-      h: 84,
-      color: note.color,
-      cluster: null,
-      kind: 'idea',
-      lastEditedBy: 'human',
-      editedAt: 0,
-      selected: false,
-    };
-  });
+  const points = scatter(NOTES.length);
+  const nodes: SceneNode[] = NOTES.map((note, i) => ({
+    id: `n_${i.toString().padStart(2, '0')}`,
+    text: note.text,
+    x: points[i].x,
+    y: points[i].y,
+    w: 176,
+    h: 84,
+    color: note.color,
+    cluster: null,
+    kind: 'idea',
+    lastEditedBy: 'human',
+    editedAt: 0,
+    selected: false,
+  }));
 
   return { nodes, edges: [], annotations: [], regions: [] };
 };

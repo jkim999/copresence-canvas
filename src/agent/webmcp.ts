@@ -65,23 +65,35 @@ const getHost = (): { transport: Transport; target: any } => {
   return { transport: 'none', target: null };
 };
 
-/** Wrap a handler so every invocation — host or console — is logged identically. */
-export const instrument = (tool: ToolDefinition): ToolDefinition => ({
-  ...tool,
-  execute: async (args, context) => {
-    const store = useHostStore.getState();
-    const id = store.recordCall(tool.name, args);
-    try {
-      const result = await tool.execute(args ?? {}, context);
-      useHostStore.getState().completeCall(id, result);
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      useHostStore.getState().completeCall(id, undefined, message);
-      throw error;
-    }
-  },
-});
+/**
+ * Wrap a handler so every invocation — host or console — is logged identically.
+ *
+ * Idempotent on purpose: the same tool list is handed to the host registration,
+ * to the in-page console and to window.__copresence, and wrapping twice would
+ * record every call twice.
+ */
+const wrapped = new WeakSet<ToolDefinition>();
+
+export const instrument = (tool: ToolDefinition): ToolDefinition => {
+  if (wrapped.has(tool)) return tool;
+  const instrumented: ToolDefinition = {
+    ...tool,
+    execute: async (args, context) => {
+      const id = useHostStore.getState().recordCall(tool.name, args);
+      try {
+        const result = await tool.execute(args ?? {}, context);
+        useHostStore.getState().completeCall(id, result);
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        useHostStore.getState().completeCall(id, undefined, message);
+        throw error;
+      }
+    },
+  };
+  wrapped.add(instrumented);
+  return instrumented;
+};
 
 export const registerTools = (tools: ToolDefinition[]): (() => void) => {
   const instrumented = tools.map(instrument);
