@@ -1,6 +1,6 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import type {
-  Actor,
+  ActorId,
   Annotation,
   LayoutKind,
   Region,
@@ -9,6 +9,7 @@ import type {
   SceneNode,
 } from '../state/types';
 import { LAYOUT_KINDS } from '../state/types';
+import { LOCAL_HUMAN } from '../state/actors';
 import { PAPER } from './palette';
 
 /**
@@ -51,14 +52,14 @@ interface WireNode {
   h?: number;
   c: string;
   k?: SceneNode['kind'];
-  b?: Actor;
+  b?: ActorId;
 }
 interface WireEdge {
   i: string;
   s: string;
   d: string;
   l: string;
-  b?: Actor;
+  b?: ActorId;
 }
 interface WireAnnotation {
   i: string;
@@ -66,14 +67,14 @@ interface WireAnnotation {
   n?: string | null;
   x: number;
   y: number;
-  b?: Actor;
+  b?: ActorId;
 }
 interface WireRegion {
   i: string;
   l: string;
   y: LayoutKind;
   n: string[];
-  b?: Actor;
+  b?: ActorId;
 }
 
 /** Defaults the decoder already supplies, so the encoder can leave them out. */
@@ -104,14 +105,14 @@ export const encodeScene = (scene: Scene): string => {
       h: omit(Math.round(n.h), DEFAULT_H),
       c: n.color,
       k: omit(n.kind, 'idea'),
-      b: omit(n.lastEditedBy, 'human'),
+      b: omit(n.lastEditedBy, LOCAL_HUMAN),
     })),
     e: scene.edges.map((e) => ({
       i: e.id,
       s: e.from,
       d: e.to,
       l: e.label,
-      b: omit(e.lastEditedBy, 'human'),
+      b: omit(e.lastEditedBy, LOCAL_HUMAN),
     })),
     a: scene.annotations.map((a) => ({
       i: a.id,
@@ -119,14 +120,14 @@ export const encodeScene = (scene: Scene): string => {
       n: a.nodeId ?? undefined,
       x: Math.round(a.x),
       y: Math.round(a.y),
-      b: omit(a.lastEditedBy, 'human'),
+      b: omit(a.lastEditedBy, LOCAL_HUMAN),
     })),
     r: scene.regions.map((r) => ({
       i: r.id,
       l: r.label,
       y: r.layout,
       n: [...r.nodeIds],
-      b: omit(r.lastEditedBy, 'human'),
+      b: omit(r.lastEditedBy, LOCAL_HUMAN),
     })),
   };
 
@@ -147,7 +148,8 @@ const num = (v: unknown, fallback: number): number => {
   return Math.max(-MAX_COORD, Math.min(MAX_COORD, Math.round(v)));
 };
 
-const actor = (v: unknown): Actor => (v === 'agent' ? 'agent' : 'human');
+/** Ids already published in share links are plain 'human' and 'agent'. */
+const actor = (v: unknown): ActorId => str(v, 64) ?? LOCAL_HUMAN;
 
 const color = (v: unknown): string => (typeof v === 'string' && HEX.test(v) ? v : PAPER.event);
 

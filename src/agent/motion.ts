@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useSceneStore } from '../state/sceneStore';
+import { myAgent } from '../state/actors';
 
 // ---------------------------------------------------------------------------
 // Easing
@@ -99,7 +100,7 @@ const step = (now: number): void => {
   }
 
   if (Object.keys(positions).length > 0) {
-    useSceneStore.getState().moveNodes(positions, 'agent');
+    useSceneStore.getState().moveNodes(positions, myAgent());
   }
   for (const tween of finished) {
     nodeTweens.delete(tween.id);

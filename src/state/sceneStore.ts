@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Actor,
+  ActorId,
   Annotation,
   HistoryEntry,
   LayoutKind,
@@ -12,6 +12,7 @@ import type {
 } from './types';
 import { seedScene } from '../data/seed';
 import { sceneFromTexts } from '../data/importBoard';
+import { LOCAL_HUMAN, isAgent } from './actors';
 
 let counter = 0;
 export const uid = (prefix: string): string => {
@@ -41,7 +42,7 @@ interface SceneState {
   epoch: number;
 
   // --- snapshots / undo -------------------------------------------------
-  snapshot: (label: string, by: Actor) => void;
+  snapshot: (label: string, by: ActorId) => void;
   undoLast: () => HistoryEntry | null;
   undoLastAgentAction: () => HistoryEntry | null;
 
@@ -49,28 +50,28 @@ interface SceneState {
   getNode: (id: string) => SceneNode | undefined;
 
   // --- human + agent mutations -----------------------------------------
-  moveNode: (id: string, x: number, y: number, by: Actor) => void;
-  moveNodes: (positions: Record<string, { x: number; y: number }>, by: Actor) => void;
-  addNode: (spec: NewNodeSpec, by: Actor) => SceneNode;
-  addNodes: (specs: NewNodeSpec[], by: Actor) => SceneNode[];
-  setNodeText: (id: string, text: string, by: Actor) => void;
-  setNodeColor: (id: string, color: string, by: Actor) => void;
-  removeNodes: (ids: string[], by: Actor) => void;
+  moveNode: (id: string, x: number, y: number, by: ActorId) => void;
+  moveNodes: (positions: Record<string, { x: number; y: number }>, by: ActorId) => void;
+  addNode: (spec: NewNodeSpec, by: ActorId) => SceneNode;
+  addNodes: (specs: NewNodeSpec[], by: ActorId) => SceneNode[];
+  setNodeText: (id: string, text: string, by: ActorId) => void;
+  setNodeColor: (id: string, color: string, by: ActorId) => void;
+  removeNodes: (ids: string[], by: ActorId) => void;
   setSelected: (id: string, selected: boolean) => void;
   clearSelection: () => void;
 
-  addEdge: (from: string, to: string, label: string, by: Actor) => SceneEdge | null;
+  addEdge: (from: string, to: string, label: string, by: ActorId) => SceneEdge | null;
   removeEdges: (ids: string[]) => void;
 
-  addAnnotation: (a: Omit<Annotation, 'id' | 'lastEditedBy' | 'editedAt'>, by: Actor) => Annotation;
+  addAnnotation: (a: Omit<Annotation, 'id' | 'lastEditedBy' | 'editedAt'>, by: ActorId) => Annotation;
   removeAnnotation: (id: string) => void;
 
-  upsertRegion: (r: Omit<Region, 'lastEditedBy' | 'editedAt'>, by: Actor) => Region;
+  upsertRegion: (r: Omit<Region, 'lastEditedBy' | 'editedAt'>, by: ActorId) => Region;
   removeRegion: (id: string) => void;
 
   setHumanGrip: (ids: string[]) => void;
   toggleProvenance: () => void;
-  pushLog: (by: Actor | 'system', text: string) => void;
+  pushLog: (by: ActorId | 'system', text: string) => void;
   resetScene: () => void;
   /** Replace the board with the human's own material. */
   loadTexts: (texts: string[]) => void;
@@ -113,7 +114,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   undoLastAgentAction: () => {
     const { history } = get();
     for (let i = history.length - 1; i >= 0; i -= 1) {
-      if (history[i].by === 'agent') {
+      if (isAgent(history[i].by)) {
         const entry = history[i];
         set({ scene: cloneScene(entry.scene), history: history.slice(0, i) });
         get().pushLog('system', `Undid agent action: ${entry.label}`);
@@ -313,7 +314,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         {
           id: uid('log'),
           at: Date.now(),
-          by: 'human',
+          by: LOCAL_HUMAN,
           text: `Loaded ${texts.length} of your own notes onto the board.`,
         },
       ],

@@ -17,6 +17,7 @@ import {
   wait,
 } from './motion';
 import { useConfirmStore } from './confirm';
+import { myAgent } from '../state/actors';
 
 const centerOf = (n: SceneNode) => ({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
 
@@ -31,7 +32,7 @@ const resolveNodes = (ids: string[]): SceneNode[] => {
   return ids.map((id) => byId.get(id)).filter((n): n is SceneNode => Boolean(n));
 };
 
-const log = (text: string) => useSceneStore.getState().pushLog('agent', text);
+const log = (text: string) => useSceneStore.getState().pushLog(myAgent(), text);
 
 // ---------------------------------------------------------------------------
 // animateAgentCursorThrough — the storytelling core. The cursor travels to a
@@ -195,7 +196,7 @@ export const arrangeRegion = async (
     };
   }
 
-  store.snapshot(label ? `Arrange "${label}" as ${layout}` : `Arrange ${nodes.length} notes as ${layout}`, 'agent');
+  store.snapshot(label ? `Arrange "${label}" as ${layout}` : `Arrange ${nodes.length} notes as ${layout}`, myAgent());
   log(`Arranging ${nodes.length} notes into a ${layout.replace('_', ' ')}${label ? ` — "${label}"` : ''}.`);
 
   const raw = applyLayout(nodes, layout, store.scene.edges);
@@ -210,7 +211,7 @@ export const arrangeRegion = async (
   if (label) {
     const region = useSceneStore.getState().upsertRegion(
       { id: `r_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`, label, layout, nodeIds: nodes.map((n) => n.id) },
-      'agent',
+      myAgent(),
     );
     regionId = region.id;
   }
@@ -233,7 +234,7 @@ export const findAndLink = async (
   links: LinkSpec[],
 ): Promise<{ created: number; skipped: LinkSpec[] }> => {
   const store = useSceneStore.getState();
-  store.snapshot(`Link notes by "${criterion}"`, 'agent');
+  store.snapshot(`Link notes by "${criterion}"`, myAgent());
   log(`Linking notes by: ${criterion}`);
 
   const skipped: LinkSpec[] = [];
@@ -250,7 +251,7 @@ export const findAndLink = async (
     setCursorMode('writing');
     await wait(70);
     await moveCursorTo(centerOf(to).x, centerOf(to).y, { speed: 1.05, mode: 'writing' });
-    const edge = useSceneStore.getState().addEdge(link.from, link.to, link.label, 'agent');
+    const edge = useSceneStore.getState().addEdge(link.from, link.to, link.label, myAgent());
     if (edge) created += 1;
     else skipped.push(link);
     await wait(60);
@@ -269,7 +270,7 @@ export const annotateScene = async (
   nodeId?: string,
 ): Promise<{ annotationId: string; anchoredTo: string | null }> => {
   const store = useSceneStore.getState();
-  store.snapshot('Add agent note', 'agent');
+  store.snapshot('Add agent note', myAgent());
 
   let x: number;
   let y: number;
@@ -292,7 +293,7 @@ export const annotateScene = async (
   await wait(320);
   const annotation = useSceneStore
     .getState()
-    .addAnnotation({ text, nodeId: node?.id ?? null, x, y }, 'agent');
+    .addAnnotation({ text, nodeId: node?.id ?? null, x, y }, myAgent());
   hideCursor(700);
   return { annotationId: annotation.id, anchoredTo: node?.id ?? null };
 };
@@ -309,7 +310,7 @@ export const summarizeCluster = async (
   const nodes = resolveNodes(nodeIds);
   if (nodes.length === 0) return { summaryNodeId: null, collapsed: 0 };
 
-  store.snapshot(`Summarise ${nodes.length} notes`, 'agent');
+  store.snapshot(`Summarise ${nodes.length} notes`, myAgent());
   log(`Collapsing ${nodes.length} notes into "${summary}".`);
 
   const c = centroidOf(nodes);
@@ -327,7 +328,7 @@ export const summarizeCluster = async (
 
   const summaryNode = useSceneStore.getState().addNode(
     { text: summary, x: c.x - 110, y: c.y - 48, color: PAPER.summary, kind: 'summary' },
-    'agent',
+    myAgent(),
   );
 
   // Keep the source notes' relationships: rewire their outside edges to the
@@ -338,10 +339,10 @@ export const summarizeCluster = async (
     .scene.edges.filter((e) => gone.has(e.from) !== gone.has(e.to));
   for (const e of outside) {
     const other = gone.has(e.from) ? e.to : e.from;
-    useSceneStore.getState().addEdge(summaryNode.id, other, e.label, 'agent');
+    useSceneStore.getState().addEdge(summaryNode.id, other, e.label, myAgent());
   }
 
-  useSceneStore.getState().removeNodes([...gone], 'agent');
+  useSceneStore.getState().removeNodes([...gone], myAgent());
   return { summaryNodeId: summaryNode.id, collapsed: nodes.length };
 };
 
@@ -373,7 +374,7 @@ export const reorganizeBoard = async (
     return { approved: false, groupsApplied: 0, moved: 0 };
   }
 
-  useSceneStore.getState().snapshot('Reorganise whole board', 'agent');
+  useSceneStore.getState().snapshot('Reorganise whole board', myAgent());
 
   const store = useSceneStore.getState();
   const origin = boundsOf(store.scene.nodes);
@@ -444,7 +445,7 @@ export const reorganizeBoard = async (
         layout: block.group.layout ?? 'grid',
         nodeIds: block.nodes.map((n) => n.id),
       },
-      'agent',
+      myAgent(),
     );
 
     cursorX += block.w + GUTTER;
@@ -464,7 +465,7 @@ export const addNotes = async (
   near?: string,
 ): Promise<{ created: string[] }> => {
   const store = useSceneStore.getState();
-  store.snapshot(`Add ${texts.length} note${texts.length === 1 ? '' : 's'}`, 'agent');
+  store.snapshot(`Add ${texts.length} note${texts.length === 1 ? '' : 's'}`, myAgent());
 
   const anchorNode = near ? store.getNode(near) : undefined;
   const b = boundsOf(store.scene.nodes);
@@ -476,7 +477,7 @@ export const addNotes = async (
     const x = baseX + (i % 2) * 216;
     const y = baseY + Math.floor(i / 2) * 108;
     await moveCursorTo(x + 88, y + 42, { speed: 1.6, mode: 'writing' });
-    const node = useSceneStore.getState().addNode({ text: texts[i], x, y, color: PAPER.agentNote }, 'agent');
+    const node = useSceneStore.getState().addNode({ text: texts[i], x, y, color: PAPER.agentNote }, myAgent());
     created.push(node.id);
     await wait(110);
   }

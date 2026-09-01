@@ -1,4 +1,5 @@
 import type { Scene, SceneNode } from '../state/types';
+import { LOCAL_HUMAN } from '../state/actors';
 import { PAPER } from './palette';
 import { classify, type Category } from './classify';
 import { columnsFor, scatter } from './scatter';
@@ -64,7 +65,7 @@ export const sceneFromTexts = (texts: string[]): Scene => {
     color: COLOR[classify(text)],
     cluster: null,
     kind: 'idea',
-    lastEditedBy: 'human',
+    lastEditedBy: LOCAL_HUMAN,
     editedAt: 0,
     selected: false,
   }));

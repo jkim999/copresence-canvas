@@ -1,4 +1,5 @@
 import type { Scene, SceneNode } from '../state/types';
+import { LOCAL_HUMAN } from '../state/actors';
 import { PAPER } from './palette';
 import { scatter } from './scatter';
 
@@ -60,7 +61,7 @@ export const seedScene = (): Scene => {
     color: note.color,
     cluster: null,
     kind: 'idea',
-    lastEditedBy: 'human',
+    lastEditedBy: LOCAL_HUMAN,
     editedAt: 0,
     selected: false,
   }));

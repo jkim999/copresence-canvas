@@ -1,4 +1,5 @@
 import type { Scene, SceneNode } from '../state/types';
+import { isAgent } from '../state/actors';
 
 /**
  * The board has to be able to leave. Without this the agent's work is a nice
@@ -15,7 +16,7 @@ const LAYOUT_NAME: Record<string, string> = {
 
 /** Agent-authored or agent-moved notes stay attributed in the export. */
 const line = (n: SceneNode): string =>
-  `- ${n.text}${n.lastEditedBy === 'agent' ? ' _(agent)_' : ''}`;
+  `- ${n.text}${isAgent(n.lastEditedBy) ? ' _(agent)_' : ''}`;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 

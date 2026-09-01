@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useSceneStore } from '../state/sceneStore';
+import { me } from '../state/actors';
 import type { SceneNode } from '../state/types';
 
 export const PROVENANCE_MS = 7000;
@@ -30,8 +31,8 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
     setEditing(false);
     const next = draft.trim();
     if (next && next !== node.text) {
-      setNodeText(node.id, next, 'human');
-      pushLog('human', `Edited note ${node.id}.`);
+      setNodeText(node.id, next, me());
+      pushLog(me(), `Edited note ${node.id}.`);
     } else {
       setDraft(node.text);
     }

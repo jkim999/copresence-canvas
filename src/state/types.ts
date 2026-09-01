@@ -1,5 +1,21 @@
-/** Who last touched a piece of the scene. Drives provenance tinting and undo. */
-export type Actor = 'human' | 'agent';
+/** What kind of participant something is. Drives provenance tinting and undo. */
+export type ActorKind = 'human' | 'agent';
+
+/**
+ * Who last touched a piece of the scene. An id, never an object: ids are what
+ * survive a share link, a history snapshot and a merge, while names and colours
+ * are presentation. See state/actors.ts for the registry that resolves them.
+ */
+export type ActorId = string;
+
+export interface Actor {
+  id: ActorId;
+  kind: ActorKind;
+  /** shown on a cursor label and in provenance; not stable across sessions. */
+  name: string;
+  /** CSS colour for this participant's cursor, label and provenance ring. */
+  color: string;
+}
 
 export type LayoutKind = 'cluster' | 'timeline_horizontal' | 'grid' | 'hierarchy';
 
@@ -21,7 +37,7 @@ export interface SceneNode {
   /** id of the region this node currently belongs to, or null. */
   cluster: string | null;
   kind: 'idea' | 'summary';
-  lastEditedBy: Actor;
+  lastEditedBy: ActorId;
   /** epoch ms of the last edit — used to fade the provenance tint. */
   editedAt: number;
   selected: boolean;
@@ -32,7 +48,7 @@ export interface SceneEdge {
   from: string;
   to: string;
   label: string;
-  lastEditedBy: Actor;
+  lastEditedBy: ActorId;
   editedAt: number;
 }
 
@@ -43,7 +59,7 @@ export interface Annotation {
   nodeId: string | null;
   x: number;
   y: number;
-  lastEditedBy: Actor;
+  lastEditedBy: ActorId;
   editedAt: number;
 }
 
@@ -52,7 +68,7 @@ export interface Region {
   label: string;
   layout: LayoutKind;
   nodeIds: string[];
-  lastEditedBy: Actor;
+  lastEditedBy: ActorId;
   editedAt: number;
 }
 
@@ -74,7 +90,7 @@ export interface Bounds {
 export interface HistoryEntry {
   id: string;
   label: string;
-  by: Actor;
+  by: ActorId;
   at: number;
   scene: Scene;
 }
@@ -82,6 +98,6 @@ export interface HistoryEntry {
 export interface LogEntry {
   id: string;
   at: number;
-  by: Actor | 'system';
+  by: ActorId | 'system';
   text: string;
 }

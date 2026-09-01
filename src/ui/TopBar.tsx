@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
+import { isAgent, me } from '../state/actors';
 import { useHostStore } from '../agent/webmcp';
 import { toMarkdown } from '../data/exportMarkdown';
 import { shareUrlFor } from '../data/shareLink';
@@ -62,7 +63,7 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const [copied, flashCopied] = useFlash();
   const [shared, flashShared] = useFlash();
 
-  const hasAgentAction = history.some((h) => h.by === 'agent');
+  const hasAgentAction = history.some((h) => isAgent(h.by));
 
   const blocked = () => pushLog('system', 'The browser blocked clipboard access — nothing was copied.');
 
@@ -70,7 +71,7 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const copyBoard = async () => {
     if (await copyText(toMarkdown(scene))) {
       flashCopied('done');
-      pushLog('human', `Copied the board as Markdown (${scene.nodes.length} notes).`);
+      pushLog(me(), `Copied the board as Markdown (${scene.nodes.length} notes).`);
       return;
     }
     flashCopied('failed');
@@ -85,7 +86,7 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
     window.history.replaceState(null, '', url);
     if (await copyText(url)) {
       flashShared('done');
-      pushLog('human', `Copied a link to this board (${url.length} characters).`);
+      pushLog(me(), `Copied a link to this board (${url.length} characters).`);
       return;
     }
     flashShared('failed');

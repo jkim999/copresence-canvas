@@ -15,6 +15,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useSceneStore } from '../state/sceneStore';
+import { isAgent, me } from '../state/actors';
 import type { SceneNode } from '../state/types';
 import { NoteNode, PROVENANCE_MS, type NoteData } from './NoteNode';
 import { AgentCursor } from './AgentCursor';
@@ -68,7 +69,7 @@ export const Canvas = () => {
   const dragged = useRef<Set<string>>(new Set());
 
   // Keep the provenance clock idle unless something is actually tinted.
-  const hasAgentEdit = scene.nodes.some((n) => n.lastEditedBy === 'agent');
+  const hasAgentEdit = scene.nodes.some((n) => isAgent(n.lastEditedBy));
   const now = useTick(showProvenance && hasAgentEdit ? 700 : 0);
 
   // A replaced board (reset, or the human's own notes) lands somewhere new.
@@ -79,7 +80,7 @@ export const Canvas = () => {
 
   const isFresh = useCallback(
     (n: SceneNode) =>
-      showProvenance && n.lastEditedBy === 'agent' && Date.now() - n.editedAt < PROVENANCE_MS,
+      showProvenance && isAgent(n.lastEditedBy) && Date.now() - n.editedAt < PROVENANCE_MS,
     [showProvenance],
   );
 
@@ -114,9 +115,9 @@ export const Canvas = () => {
         source: e.from,
         target: e.to,
         label: e.label,
-        animated: e.lastEditedBy === 'agent' && Date.now() - e.editedAt < PROVENANCE_MS,
-        className: e.lastEditedBy === 'agent' ? 'agent-edge' : '',
-        style: { stroke: e.lastEditedBy === 'agent' ? '#0e6e64' : '#a89f8d' },
+        animated: isAgent(e.lastEditedBy) && Date.now() - e.editedAt < PROVENANCE_MS,
+        className: isAgent(e.lastEditedBy) ? 'agent-edge' : '',
+        style: { stroke: isAgent(e.lastEditedBy) ? '#0e6e64' : '#a89f8d' },
       })),
     [scene.edges, now],
   );
@@ -128,7 +129,7 @@ export const Canvas = () => {
       // …then mirror only genuine human intent back into the scene.
       for (const change of changes) {
         if (change.type === 'position' && change.position && change.dragging) {
-          moveNode(change.id, change.position.x, change.position.y, 'human');
+          moveNode(change.id, change.position.x, change.position.y, me());
         } else if (change.type === 'select') {
           setSelected(change.id, change.selected);
         }
@@ -149,7 +150,7 @@ export const Canvas = () => {
 
   const onNodeDragStop: OnNodeDrag<RFNode> = useCallback(
     (_e, node) => {
-      moveNode(node.id, node.position.x, node.position.y, 'human');
+      moveNode(node.id, node.position.x, node.position.y, me());
       dragged.current.delete(node.id);
       setHumanGrip([...dragged.current]);
     },
@@ -160,9 +161,9 @@ export const Canvas = () => {
     (event: React.MouseEvent) => {
       if ((event.target as HTMLElement).closest('.react-flow__node')) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      snapshot('Add note', 'human');
-      const node = addNode({ text: 'New note', x: position.x - 88, y: position.y - 42 }, 'human');
-      pushLog('human', `Added note ${node.id}.`);
+      snapshot('Add note', me());
+      const node = addNode({ text: 'New note', x: position.x - 88, y: position.y - 42 }, me());
+      pushLog(me(), `Added note ${node.id}.`);
     },
     [addNode, pushLog, screenToFlowPosition, snapshot],
   );
@@ -173,9 +174,9 @@ export const Canvas = () => {
       if ((event.target as HTMLElement).tagName === 'TEXTAREA') return;
       const selected = scene.nodes.filter((n) => n.selected).map((n) => n.id);
       if (selected.length === 0) return;
-      snapshot(`Delete ${selected.length} note(s)`, 'human');
-      removeNodes(selected, 'human');
-      pushLog('human', `Deleted ${selected.length} note(s).`);
+      snapshot(`Delete ${selected.length} note(s)`, me());
+      removeNodes(selected, me());
+      pushLog(me(), `Deleted ${selected.length} note(s).`);
     },
     [pushLog, removeNodes, scene.nodes, snapshot],
   );

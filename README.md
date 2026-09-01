@@ -61,7 +61,11 @@ These were decided up front and every part of the code answers to them.
    what keeps a language model reliable at a geometry task.
 4. **`get_scene` returns JSON, not a screenshot.**
 5. **Every mutation records `lastEditedBy`.** Provenance tinting and one-click
-   "undo the agent" fall straight out of it.
+   "undo the agent" fall straight out of it. It stores an actor *id*, not a role:
+   ids survive a share link, a snapshot and a merge, while names and colours are
+   presentation. The two actors this page has always had keep the ids `human` and
+   `agent`, so `kindOf` stays a pure string test — the render path asks "is this
+   the agent's work?" once per note per frame and must not pay for a lookup.
 
 ### The human's grip is sacred
 
@@ -186,7 +190,7 @@ npm run test     # geometry, chronology and the grip invariant
 npm run build    # production build to dist/
 ```
 
-`npm test` (69 tests) covers the parts where a silent regression would be invisible on
+`npm test` (89 tests) covers the parts where a silent regression would be invisible on
 screen: chronology inference, every layout's centring and totality, overlap relaxation,
 nearest-neighbour visiting, the grip invariant itself asserted at the store level (the
 agent must not move a held note, and must be able to move it again the moment the human
@@ -229,7 +233,8 @@ await window.__copresence.call.arrange_region({
 
 ```
 src/
-  state/        scene store — the single source of truth both actors mutate
+  state/        scene store — the single source of truth every actor mutates
+    actors.ts   who is on the board; ids on entities, names and colours here
   agent/
     webmcp.ts   host detection + registration + call instrumentation
     tools.ts    the nine tool definitions and their JSON Schemas

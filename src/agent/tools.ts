@@ -1,4 +1,5 @@
 import { useSceneStore } from '../state/sceneStore';
+import { kindOf } from '../state/actors';
 import { LAYOUT_KINDS, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
 import {
@@ -46,14 +47,14 @@ const readScene = () => {
       h: n.h,
       kind: n.kind,
       cluster: n.cluster,
-      lastEditedBy: n.lastEditedBy,
+      lastEditedBy: kindOf(n.lastEditedBy),
     })),
     edges: scene.edges.map((e) => ({
       id: e.id,
       from: e.from,
       to: e.to,
       label: e.label,
-      lastEditedBy: e.lastEditedBy,
+      lastEditedBy: kindOf(e.lastEditedBy),
     })),
     regions: scene.regions.map((r) => ({
       id: r.id,
@@ -116,7 +117,7 @@ export const buildTools = (): ToolDefinition[] => [
       const cutoff = Date.now() - window;
 
       const touched = state.scene.nodes
-        .filter((n) => n.lastEditedBy === 'human' && n.editedAt > 0 && n.editedAt >= cutoff)
+        .filter((n) => kindOf(n.lastEditedBy) === 'human' && n.editedAt > 0 && n.editedAt >= cutoff)
         .sort((a, b) => b.editedAt - a.editedAt)
         .map((n) => ({
           id: n.id,
