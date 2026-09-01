@@ -54,7 +54,7 @@ export const Canvas = () => {
   const showProvenance = useSceneStore((s) => s.showProvenance);
   const moveNode = useSceneStore((s) => s.moveNode);
   const setSelected = useSceneStore((s) => s.setSelected);
-  const setHumanGrip = useSceneStore((s) => s.setHumanGrip);
+  const setGrip = useSceneStore((s) => s.setGrip);
   const addNode = useSceneStore((s) => s.addNode);
   const removeNodes = useSceneStore((s) => s.removeNodes);
   const snapshot = useSceneStore((s) => s.snapshot);
@@ -138,23 +138,23 @@ export const Canvas = () => {
     [moveNode, setSelected],
   );
 
-  // The human's grip is sacred: a note under their cursor is off-limits to the
-  // agent's tweens. That guarantee is what makes simultaneous editing safe.
+  // A hand on a note is sacred: it is off limits to the agent's tweens and to
+  // anyone else's edits. That guarantee is what makes simultaneous editing safe.
   const onNodeDragStart: OnNodeDrag<RFNode> = useCallback(
     (_e, node) => {
       dragged.current.add(node.id);
-      setHumanGrip([...dragged.current]);
+      setGrip([...dragged.current], me());
     },
-    [setHumanGrip],
+    [setGrip],
   );
 
   const onNodeDragStop: OnNodeDrag<RFNode> = useCallback(
     (_e, node) => {
       moveNode(node.id, node.position.x, node.position.y, me());
       dragged.current.delete(node.id);
-      setHumanGrip([...dragged.current]);
+      setGrip([...dragged.current], me());
     },
-    [moveNode, setHumanGrip],
+    [moveNode, setGrip],
   );
 
   const onDoubleClick = useCallback(

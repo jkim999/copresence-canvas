@@ -79,13 +79,13 @@ const hasWork = (): boolean => nodeTweens.size > 0 || cursorFrame !== null;
 const step = (now: number): void => {
   lastTick = now;
   const positions: Record<string, { x: number; y: number }> = {};
-  const grip = new Set(useSceneStore.getState().humanGrip);
+  const { grip } = useSceneStore.getState();
   const finished: NodeTween[] = [];
 
   const stolen = new Set<string>();
   for (const tween of nodeTweens.values()) {
-    // The human took this note. Yield it immediately and permanently.
-    if (grip.has(tween.id)) {
+    // Someone put a hand on this note. Yield it immediately and permanently.
+    if (grip[tween.id] !== undefined) {
       stolen.add(tween.id);
       finished.push(tween);
       continue;

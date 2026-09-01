@@ -67,18 +67,26 @@ These were decided up front and every part of the code answers to them.
    `agent`, so `kindOf` stays a pure string test — the render path asks "is this
    the agent's work?" once per note per frame and must not pay for a lookup.
 
-### The human's grip is sacred
+### A hand on a note is sacred
 
-The one invariant that makes concurrent editing safe, in `sceneStore.moveNodes`:
+The one invariant that makes concurrent editing safe. The grip names the *holder*,
+not just the note, and every mutating path asks before it writes:
 
 ```ts
-// Never fight the human: a node under their cursor is theirs.
-if (!p || grip.has(n.id)) return n;
+// A note is off limits when someone *else* has a hand on it.
+const holder = grip[nodeId];
+return holder !== undefined && holder !== by;
 ```
 
 If you grab a note the agent is mid-way through carrying, the agent's tween for that
 note is cancelled on the next frame and it lets go permanently. No jitter, no tug of
 war, no lost work.
+
+It guards moving, retitling, recolouring **and deleting**, because a guarantee with a
+hole in it is not a guarantee: `summarize_cluster` used to retire whatever it was
+given, and would happily have dissolved a note out of your hand mid-drag. It now
+leaves that note on the board and reports `keptInHand` to the model, so the agent
+never claims work it did not do.
 
 ## The tools
 
@@ -190,7 +198,7 @@ npm run test     # geometry, chronology and the grip invariant
 npm run build    # production build to dist/
 ```
 
-`npm test` (89 tests) covers the parts where a silent regression would be invisible on
+`npm test` (100 tests) covers the parts where a silent regression would be invisible on
 screen: chronology inference, every layout's centring and totality, overlap relaxation,
 nearest-neighbour visiting, the grip invariant itself asserted at the store level (the
 agent must not move a held note, and must be able to move it again the moment the human

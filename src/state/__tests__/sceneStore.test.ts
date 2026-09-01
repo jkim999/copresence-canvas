@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useSceneStore } from '../sceneStore';
+import { LOCAL_HUMAN } from '../actors';
 
 const reset = () => useSceneStore.getState().resetScene();
 const first = () => useSceneStore.getState().scene.nodes[0];
@@ -7,13 +8,13 @@ const first = () => useSceneStore.getState().scene.nodes[0];
 describe('the human grip invariant', () => {
   beforeEach(() => {
     reset();
-    useSceneStore.getState().setHumanGrip([]);
+    useSceneStore.getState().clearGrip();
   });
 
   it('refuses to let the agent move a note the human is holding', () => {
     const held = first();
     const other = useSceneStore.getState().scene.nodes[1];
-    useSceneStore.getState().setHumanGrip([held.id]);
+    useSceneStore.getState().setGrip([held.id], LOCAL_HUMAN);
 
     useSceneStore.getState().moveNodes(
       { [held.id]: { x: 9999, y: 9999 }, [other.id]: { x: 500, y: 500 } },
@@ -33,11 +34,11 @@ describe('the human grip invariant', () => {
 
   it('lets the agent move the note again once the human lets go', () => {
     const target = first();
-    useSceneStore.getState().setHumanGrip([target.id]);
+    useSceneStore.getState().setGrip([target.id], LOCAL_HUMAN);
     useSceneStore.getState().moveNodes({ [target.id]: { x: 100, y: 100 } }, 'agent');
     expect(useSceneStore.getState().getNode(target.id)!.x).toBe(target.x);
 
-    useSceneStore.getState().setHumanGrip([]);
+    useSceneStore.getState().clearGrip();
     useSceneStore.getState().moveNodes({ [target.id]: { x: 100, y: 100 } }, 'agent');
     expect(useSceneStore.getState().getNode(target.id)!.x).toBe(100);
   });

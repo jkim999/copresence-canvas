@@ -111,7 +111,7 @@ const clearStrays = async (
   targets: Record<string, { x: number; y: number }>,
 ): Promise<string[]> => {
   const members = new Set(memberIds);
-  const grip = new Set(useSceneStore.getState().humanGrip);
+  const { grip } = useSceneStore.getState();
   const placed = memberIds
     .map((id) => {
       const n = useSceneStore.getState().getNode(id);
@@ -134,7 +134,7 @@ const clearStrays = async (
     .scene.nodes.filter(
       (n) =>
         !members.has(n.id) &&
-        !grip.has(n.id) &&
+        grip[n.id] === undefined &&
         n.x < box.right &&
         n.x + n.w > box.x &&
         n.y < box.bottom &&
@@ -305,10 +305,10 @@ export const annotateScene = async (
 export const summarizeCluster = async (
   nodeIds: string[],
   summary: string,
-): Promise<{ summaryNodeId: string | null; collapsed: number }> => {
+): Promise<{ summaryNodeId: string | null; collapsed: number; keptInHand: string[] }> => {
   const store = useSceneStore.getState();
   const nodes = resolveNodes(nodeIds);
-  if (nodes.length === 0) return { summaryNodeId: null, collapsed: 0 };
+  if (nodes.length === 0) return { summaryNodeId: null, collapsed: 0, keptInHand: [] };
 
   store.snapshot(`Summarise ${nodes.length} notes`, myAgent());
   log(`Collapsing ${nodes.length} notes into "${summary}".`);
@@ -342,8 +342,14 @@ export const summarizeCluster = async (
     useSceneStore.getState().addEdge(summaryNode.id, other, e.label, myAgent());
   }
 
-  useSceneStore.getState().removeNodes([...gone], myAgent());
-  return { summaryNodeId: summaryNode.id, collapsed: nodes.length };
+  // A note somebody is holding is not ours to retire. It stays on the board,
+  // and the model is told which, so it does not report work it did not do.
+  const keptInHand = useSceneStore.getState().removeNodes([...gone], myAgent());
+  return {
+    summaryNodeId: summaryNode.id,
+    collapsed: nodes.length - keptInHand.length,
+    keptInHand,
+  };
 };
 
 // ---------------------------------------------------------------------------

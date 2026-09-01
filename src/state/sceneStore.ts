@@ -35,8 +35,13 @@ interface SceneState {
   scene: Scene;
   history: HistoryEntry[];
   log: LogEntry[];
-  /** node ids the human is dragging right now — the agent must never fight these. */
-  humanGrip: string[];
+  /**
+   * Who is physically holding which note right now, keyed by node id. Nobody
+   * may move, retitle, recolour or delete a note in someone else's hand — this
+   * is the invariant that makes concurrent editing safe, and it has to name the
+   * holder, not just the note, once there can be more than one pair of hands.
+   */
+  grip: Record<string, ActorId>;
   showProvenance: boolean;
   /** bumped whenever the whole board is replaced, so the canvas can refit. */
   epoch: number;
@@ -56,7 +61,8 @@ interface SceneState {
   addNodes: (specs: NewNodeSpec[], by: ActorId) => SceneNode[];
   setNodeText: (id: string, text: string, by: ActorId) => void;
   setNodeColor: (id: string, color: string, by: ActorId) => void;
-  removeNodes: (ids: string[], by: ActorId) => void;
+  /** Deletes what it can and returns the ids it refused, held by someone else. */
+  removeNodes: (ids: string[], by: ActorId) => string[];
   setSelected: (id: string, selected: boolean) => void;
   clearSelection: () => void;
 
@@ -69,7 +75,10 @@ interface SceneState {
   upsertRegion: (r: Omit<Region, 'lastEditedBy' | 'editedAt'>, by: ActorId) => Region;
   removeRegion: (id: string) => void;
 
-  setHumanGrip: (ids: string[]) => void;
+  /** Replace everything `by` is holding. A note already in another hand is not taken. */
+  setGrip: (nodeIds: string[], by: ActorId) => void;
+  clearGrip: () => void;
+  heldBy: (nodeId: string) => ActorId | null;
   toggleProvenance: () => void;
   pushLog: (by: ActorId | 'system', text: string) => void;
   resetScene: () => void;
@@ -78,6 +87,12 @@ interface SceneState {
   /** Replace the board with one that arrived whole, from a shared link. */
   loadScene: (scene: Scene, note?: string) => void;
 }
+
+/** A note is off limits when someone *else* has a hand on it. */
+const heldByOther = (grip: Record<string, ActorId>, nodeId: string, by: ActorId): boolean => {
+  const holder = grip[nodeId];
+  return holder !== undefined && holder !== by;
+};
 
 const cloneScene = (s: Scene): Scene => ({
   nodes: s.nodes.map((n) => ({ ...n })),
@@ -90,7 +105,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   scene: seedScene(),
   history: [],
   log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas ready.' }],
-  humanGrip: [],
+  grip: {},
   showProvenance: true,
   epoch: 0,
 
@@ -127,26 +142,28 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   getNode: (id) => get().scene.nodes.find((n) => n.id === id),
 
   moveNode: (id, x, y, by) =>
-    set((s) => ({
-      scene: {
-        ...s.scene,
-        nodes: s.scene.nodes.map((n) =>
-          n.id === id ? { ...n, x, y, lastEditedBy: by, editedAt: Date.now() } : n,
-        ),
-      },
-    })),
+    set((s) => {
+      if (heldByOther(s.grip, id, by)) return {};
+      return {
+        scene: {
+          ...s.scene,
+          nodes: s.scene.nodes.map((n) =>
+            n.id === id ? { ...n, x, y, lastEditedBy: by, editedAt: Date.now() } : n,
+          ),
+        },
+      };
+    }),
 
   moveNodes: (positions, by) =>
     set((s) => {
       const at = Date.now();
-      const grip = new Set(s.humanGrip);
       return {
         scene: {
           ...s.scene,
           nodes: s.scene.nodes.map((n) => {
             const p = positions[n.id];
-            // Never fight the human: a node under their cursor is theirs.
-            if (!p || grip.has(n.id)) return n;
+            // Never fight a hand that is already on it.
+            if (!p || heldByOther(s.grip, n.id, by)) return n;
             return { ...n, x: p.x, y: p.y, lastEditedBy: by, editedAt: at };
           }),
         },
@@ -176,7 +193,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   setNodeText: (id, text, by) =>
-    set((s) => ({
+    set((s) => (heldByOther(s.grip, id, by) ? {} : {
       scene: {
         ...s.scene,
         nodes: s.scene.nodes.map((n) =>
@@ -186,7 +203,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     })),
 
   setNodeColor: (id, color, by) =>
-    set((s) => ({
+    set((s) => (heldByOther(s.grip, id, by) ? {} : {
       scene: {
         ...s.scene,
         nodes: s.scene.nodes.map((n) =>
@@ -195,10 +212,12 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       },
     })),
 
-  removeNodes: (ids, _by) =>
-    set((s) => {
-      const gone = new Set(ids);
-      return {
+  removeNodes: (ids, by) => {
+    const { grip } = get();
+    const refused = ids.filter((id) => heldByOther(grip, id, by));
+    const gone = new Set(ids.filter((id) => !heldByOther(grip, id, by)));
+    if (gone.size > 0) {
+      set((s) => ({
         scene: {
           ...s.scene,
           nodes: s.scene.nodes.filter((n) => !gone.has(n.id)),
@@ -208,8 +227,10 @@ export const useSceneStore = create<SceneState>((set, get) => ({
             .map((r) => ({ ...r, nodeIds: r.nodeIds.filter((id) => !gone.has(id)) }))
             .filter((r) => r.nodeIds.length > 0),
         },
-      };
-    }),
+      }));
+    }
+    return refused;
+  },
 
   setSelected: (id, selected) =>
     set((s) => ({
@@ -287,7 +308,23 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       },
     })),
 
-  setHumanGrip: (ids) => set({ humanGrip: ids }),
+  setGrip: (nodeIds, by) =>
+    set((s) => {
+      // Drop everything this actor was holding, then claim only what is free:
+      // a second pointer coming down on a held note must not steal the claim.
+      const next: Record<string, ActorId> = {};
+      for (const [nodeId, holder] of Object.entries(s.grip)) {
+        if (holder !== by) next[nodeId] = holder;
+      }
+      for (const nodeId of nodeIds) {
+        if (next[nodeId] === undefined) next[nodeId] = by;
+      }
+      return { grip: next };
+    }),
+
+  clearGrip: () => set({ grip: {} }),
+
+  heldBy: (nodeId) => get().grip[nodeId] ?? null,
 
   toggleProvenance: () => set((s) => ({ showProvenance: !s.showProvenance })),
 
@@ -308,7 +345,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set((s) => ({
       scene: sceneFromTexts(texts),
       history: [],
-      humanGrip: [],
+      grip: {},
       epoch: s.epoch + 1,
       log: [
         {
@@ -326,7 +363,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       // can never be mutated out from under the store.
       scene: cloneScene(scene),
       history: [],
-      humanGrip: [],
+      grip: {},
       epoch: s.epoch + 1,
       log: [
         {

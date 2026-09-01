@@ -125,7 +125,7 @@ export const buildTools = (): ToolDefinition[] => [
           secondsAgo: Math.round((Date.now() - n.editedAt) / 1000),
         }));
 
-      const holding = state.humanGrip
+      const holding = Object.keys(state.grip)
         .map((id) => state.getNode(id))
         .filter((n): n is NonNullable<typeof n> => Boolean(n))
         .map((n) => ({ id: n.id, text: n.text }));

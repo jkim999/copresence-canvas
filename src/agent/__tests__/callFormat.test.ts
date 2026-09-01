@@ -68,3 +68,17 @@ describe('summarizeResult', () => {
     expect(summarizeResult('something_new', { ok: true })).toBe('ok');
   });
 });
+
+describe('a summary that could not absorb everything', () => {
+  it('says what it left behind rather than claiming it collapsed', () => {
+    expect(
+      summarizeResult('summarize_cluster', { collapsed: 4, keptInHand: ['n_02'] }),
+    ).toBe('4 notes → 1 summary · left 1 in your hand');
+  });
+
+  it('stays quiet when nothing was held', () => {
+    expect(summarizeResult('summarize_cluster', { collapsed: 5, keptInHand: [] })).toBe(
+      '5 notes → 1 summary',
+    );
+  });
+});

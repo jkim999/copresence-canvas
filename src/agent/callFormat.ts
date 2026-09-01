@@ -79,6 +79,7 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       break;
     case 'summarize_cluster':
       parts.push(`${count(r.collapsed)} notes → 1 summary`);
+      if (count(r.keptInHand) > 0) parts.push(`left ${count(r.keptInHand)} in your hand`);
       break;
     case 'add_notes':
       parts.push(`+${count(r.created)} notes`);

@@ -71,12 +71,12 @@ describe('a second agent on the board', () => {
 
   it('still cannot take a note out of a hand that is holding it', () => {
     const held = store().scene.nodes[0];
-    store().setHumanGrip([held.id]);
+    store().setGrip([held.id], LOCAL_HUMAN);
 
     store().moveNodes({ [held.id]: { x: 9999, y: 9999 } }, BO);
 
     expect(store().getNode(held.id)!.x).toBe(held.x);
-    store().setHumanGrip([]);
+    store().clearGrip();
   });
 });
 
