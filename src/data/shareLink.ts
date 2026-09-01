@@ -10,6 +10,7 @@ import type {
 } from '../state/types';
 import { LAYOUT_KINDS } from '../state/types';
 import { LOCAL_HUMAN } from '../state/actors';
+import { repairScene } from '../state/repair';
 import { PAPER } from './palette';
 
 /**
@@ -206,18 +207,12 @@ export const decodeScene = (encoded: string | null | undefined): Scene | null =>
   if (nodes.length === 0) return null;
 
   const edges: SceneEdge[] = [];
-  const pairs = new Set<string>();
   for (const raw of asArray(wire.e)) {
     const e = raw as Partial<WireEdge>;
     const id = str(e.i, 64);
     const from = str(e.s, 64);
     const to = str(e.d, 64);
-    // Mirrors addEdge: no self-edge, no dangling end, no duplicate pair.
-    if (!id || !from || !to || from === to) continue;
-    if (!present.has(from) || !present.has(to)) continue;
-    const pair = [from, to].sort().join(' ');
-    if (pairs.has(pair)) continue;
-    pairs.add(pair);
+    if (!id || !from || !to) continue;
     edges.push({
       id,
       from,
@@ -234,14 +229,10 @@ export const decodeScene = (encoded: string | null | undefined): Scene | null =>
     const id = str(a.i, 64);
     const text = str(a.t, MAX_TEXT);
     if (!id || !text) continue;
-    const anchor = str(a.n, 64);
-    // Anchored to a note that did not travel with the board: drop it, the way
-    // removeNodes drops an annotation whose note is gone.
-    if (anchor && !present.has(anchor)) continue;
     annotations.push({
       id,
       text,
-      nodeId: anchor,
+      nodeId: str(a.n, 64),
       x: num(a.x, 0),
       y: num(a.y, 0),
       lastEditedBy: actor(a.b),
@@ -250,40 +241,26 @@ export const decodeScene = (encoded: string | null | undefined): Scene | null =>
   }
 
   const regions: Region[] = [];
-  const claimed = new Set<string>();
-  const cluster = new Map<string, string>();
   for (const raw of asArray(wire.r)) {
     const r = raw as Partial<WireRegion>;
     const id = str(r.i, 64);
     const label = str(r.l, MAX_LABEL);
-    if (!id || !label || claimed.has(id)) continue;
-    // A note belongs to exactly one region. Live upserts settle that by "newest
-    // claim wins"; a flat payload has no such ordering, so the first wins here.
-    const nodeIds: string[] = [];
-    for (const value of asArray(r.n)) {
-      const nodeId = str(value, 64);
-      if (!nodeId || !present.has(nodeId) || claimed.has(nodeId)) continue;
-      claimed.add(nodeId);
-      cluster.set(nodeId, id);
-      nodeIds.push(nodeId);
-    }
-    if (nodeIds.length === 0) continue;
+    if (!id || !label) continue;
     regions.push({
       id,
       label,
       layout: layout(r.y),
-      nodeIds,
+      nodeIds: asArray(r.n)
+        .map((v) => str(v, 64))
+        .filter((v): v is string => v !== null),
       lastEditedBy: actor(r.b),
       editedAt: 0,
     });
   }
 
-  return {
-    nodes: nodes.map((n) => ({ ...n, cluster: cluster.get(n.id) ?? null })),
-    edges,
-    annotations,
-    regions,
-  };
+  // Validation above only proves each field is the right shape. The invariants
+  // that span entities are re-established the same way a merge's are.
+  return repairScene({ nodes, edges, annotations, regions });
 };
 
 // --- location hash ---------------------------------------------------------
