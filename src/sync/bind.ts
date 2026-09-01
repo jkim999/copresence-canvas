@@ -2,9 +2,10 @@ import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import type { ActorId, Scene } from '../state/types';
 import { useSceneStore } from '../state/sceneStore';
-import { me, myAgent, nameOf } from '../state/actors';
+import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
-import { holdsFrom, publish } from './presence';
+import { holdsFrom, peersOf, publish } from './presence';
+import { setPeers } from './peers';
 import { openSession, roomFromLocation, type Session } from './channel';
 
 /**
@@ -101,14 +102,15 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
 
   // --- awareness -> store ---------------------------------------------------
 
-  const pullGrip = (): void => {
+  const pullPresence = (): void => {
+    setPeers(peersOf(awareness));
     const next = holdsFrom(awareness);
     if (sameGrip(useSceneStore.getState().grip, next)) return;
     useSceneStore.setState({ grip: next });
   };
   // `change`, not `update`: awareness heartbeats every few seconds and only
   // `change` means somebody's state actually differs.
-  awareness.on('change', pullGrip);
+  awareness.on('change', pullPresence);
 
   // --- store -> doc and awareness -------------------------------------------
 
@@ -121,7 +123,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
       .sort();
     if (sameIds(holding, published)) return;
     published = holding;
-    publish(awareness, { actor: me(), name: nameOf(me()), holding });
+    publish(awareness, { actor: me(), name: seatName(me()), holding });
   };
 
   const unsubscribe = useSceneStore.subscribe((state, prev) => {
@@ -130,8 +132,12 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     if (state.grip !== prev.grip) pushGrip();
   });
 
+  // A tab that keeps the default `human` id cannot be told apart from any other
+  // tab, and the grip only refuses a note held by someone *else*.
+  takeSeat();
+
   // Be visible to the room straight away, board or no board.
-  publish(awareness, { actor: me(), name: nameOf(me()) });
+  publish(awareness, { actor: me(), name: seatName(me()) });
 
   const grace = setTimeout(() => {
     if (collections(doc).nodes.size === 0) {
@@ -150,9 +156,10 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     clearTimeout(grace);
     unsubscribe();
     doc.off('update', onDoc);
-    awareness.off('change', pullGrip);
+    awareness.off('change', pullPresence);
     // Says goodbye on the way out, which is what frees anything still in hand.
     session.close();
+    setPeers([]);
     awareness.destroy();
     doc.destroy();
     globalThis.removeEventListener?.('beforeunload', stop);

@@ -23,9 +23,16 @@ const AGENT_PREFIX = 'a_';
 const HUMAN_PREFIX = 'h_';
 
 let counter = 0;
+/**
+ * The random tail is load-bearing, not decoration. A clock and a counter are
+ * both per-tab, so two tabs opened together mint byte-identical ids — and two
+ * peers sharing an id is exactly the failure seats exist to prevent, since the
+ * grip only refuses a note held by someone *else*.
+ */
 const mint = (prefix: string): ActorId => {
   counter += 1;
-  return `${prefix}${Date.now().toString(36)}${counter.toString(36)}`;
+  const noise = Math.random().toString(36).slice(2, 8);
+  return `${prefix}${Date.now().toString(36)}${counter.toString(36)}${noise}`;
 };
 
 export const agentId = (): ActorId => mint(AGENT_PREFIX);
@@ -56,6 +63,24 @@ const SEATS: Record<ActorKind, string[]> = {
   human: ['var(--human)'],
   agent: ['var(--agent)'],
 };
+
+/**
+ * What other people call you.
+ *
+ * Every tab calls itself "You", so a name cannot travel over the wire as-is or
+ * a board full of peers would all be named You. A seat name is derived from the
+ * actor id instead: no coordination, no server handing out labels, and the same
+ * peer reads as the same name on every screen.
+ */
+const SEAT_NAMES = ['Cedar', 'Amber', 'Slate', 'Clover', 'Ochre', 'Juniper', 'Flint', 'Sorrel'];
+
+const hash = (text: string): number => {
+  let h = 0;
+  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) | 0;
+  return Math.abs(h);
+};
+
+export const seatName = (id: ActorId): string => SEAT_NAMES[hash(id) % SEAT_NAMES.length];
 
 interface ActorState {
   actors: Record<ActorId, Actor>;
@@ -99,7 +124,7 @@ export const useActorStore = create<ActorState>((set, get) => ({
         [paired]: {
           id: paired,
           kind: 'agent',
-          name: `${s.actors[id]?.name ?? 'Someone'}'s agent`,
+          name: s.actors[id]?.name === 'You' ? 'Your agent' : `${s.actors[id]?.name ?? 'Someone'}'s agent`,
           color: SEATS.agent[0],
         },
       },
@@ -115,6 +140,23 @@ export const useActorStore = create<ActorState>((set, get) => ({
 
   reset: () => set({ actors: localPair(), me: LOCAL_HUMAN, myAgent: LOCAL_AGENT }),
 }));
+
+/**
+ * Claim an identity of this browser's own.
+ *
+ * Two tabs both answering to the id `human` is not a cosmetic problem: the grip
+ * asks whether a note is held by someone *else*, so two tabs sharing one id can
+ * each pull a note out of the other's hand and neither is ever refused. A tab
+ * that joins a room takes its own seat, and a paired agent comes with it — which
+ * is the whole point of two people each bringing their own.
+ */
+export const takeSeat = (): ActorId => {
+  const id = humanId();
+  const store = useActorStore.getState();
+  store.register({ id, kind: 'human', name: 'You', color: SEATS.human[0] });
+  store.setMe(id);
+  return id;
+};
 
 /** Non-hook access, for the tool handlers and stores that run outside React. */
 export const me = (): ActorId => useActorStore.getState().me;

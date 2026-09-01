@@ -6,7 +6,7 @@ import { openSession, type Session } from '../channel';
 import { readScene, writeScene } from '../doc';
 import { holdsFrom, publish } from '../presence';
 import { useSceneStore } from '../../state/sceneStore';
-import { LOCAL_HUMAN, humanId } from '../../state/actors';
+import { LOCAL_HUMAN, humanId, me, seatName } from '../../state/actors';
 import type { Scene, SceneNode } from '../../state/types';
 
 /**
@@ -143,7 +143,7 @@ describe('hands, across the wire', () => {
     await settle();
 
     expect(store().heldBy('n_0')).toBe(BO);
-    store().moveNode('n_0', 999, 999, LOCAL_HUMAN);
+    store().moveNode('n_0', 999, 999, me());
     expect(store().getNode('n_0')!.x).toBe(10);
   });
 
@@ -153,12 +153,15 @@ describe('hands, across the wire', () => {
     const c = connect(room);
     await settle();
 
+    // The seat, not the literal `human` — connecting takes an identity of this
+    // tab's own, which is the only reason two tabs can refuse each other.
     const target = store().scene.nodes[0];
-    store().setGrip([target.id], LOCAL_HUMAN);
+    store().setGrip([target.id], me());
     await settle();
 
-    expect(holdsFrom(other.awareness)).toEqual({ [target.id]: LOCAL_HUMAN });
-    expect(c.awareness.getLocalState()).toMatchObject({ holding: [target.id] });
+    expect(me()).not.toBe(LOCAL_HUMAN);
+    expect(holdsFrom(other.awareness)).toEqual({ [target.id]: me() });
+    expect(c.awareness.getLocalState()).toMatchObject({ holding: [target.id], name: seatName(me()) });
   });
 
   it('lets go of everything when the tab closes', async () => {
@@ -168,9 +171,9 @@ describe('hands, across the wire', () => {
     await settle();
 
     const target = store().scene.nodes[0];
-    store().setGrip([target.id], LOCAL_HUMAN);
+    store().setGrip([target.id], me());
     await settle();
-    expect(holdsFrom(other.awareness)).toEqual({ [target.id]: LOCAL_HUMAN });
+    expect(holdsFrom(other.awareness)).toEqual({ [target.id]: me() });
 
     c.stop();
     connections.length = 0;
@@ -191,12 +194,12 @@ describe('hands, across the wire', () => {
     let writes = 0;
     const unsub = useSceneStore.subscribe(() => { writes += 1; });
     const target = store().scene.nodes[0];
-    store().setGrip([target.id], LOCAL_HUMAN);
+    store().setGrip([target.id], me());
     await settle();
     unsub();
 
     // One local set, and at most the echo that confirms it.
     expect(writes).toBeLessThanOrEqual(2);
-    expect(store().heldBy(target.id)).toBe(LOCAL_HUMAN);
+    expect(store().heldBy(target.id)).toBe(me());
   });
 });

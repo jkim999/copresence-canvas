@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
 import { isAgent, me } from '../state/actors';
 import { useHostStore } from '../agent/webmcp';
+import { usePeerStore } from '../sync/peers';
 import { toMarkdown } from '../data/exportMarkdown';
 import { shareUrlFor } from '../data/shareLink';
 import {
@@ -24,6 +25,9 @@ interface Props {
 }
 
 type Flash = 'idle' | 'done' | 'failed';
+
+/** Written out rather than counted, because "one board, 4 hands" reads badly. */
+const HANDS = ['two', 'four', 'six', 'eight', 'ten', 'many'];
 
 /** A button that reports what happened, then goes quiet again. */
 const useFlash = (): [Flash, (next: Flash) => void] => {
@@ -62,6 +66,7 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const pushLog = useSceneStore((s) => s.pushLog);
   const [copied, flashCopied] = useFlash();
   const [shared, flashShared] = useFlash();
+  const peers = usePeerStore((s) => s.peers);
 
   const hasAgentAction = history.some((h) => isAgent(h.by));
 
@@ -101,7 +106,8 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
           <i />
         </span>
         Co-Presence Canvas
-        <em>one board, two hands</em>
+        {/* Every person on the board brings an agent, so hands come in pairs. */}
+        <em>one board, {HANDS[Math.min(peers.length, HANDS.length - 1)]} hands</em>
       </div>
 
       <div className="topbar-spacer" />
@@ -127,6 +133,21 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
           {registered.length} tool{registered.length === 1 ? '' : 's'}
         </span>
       </span>
+
+      {peers.length > 0 ? (
+        <span
+          className="status here"
+          title={
+            peers.length === 1
+              ? `${peers[0].name} is on this board, with an agent of their own.`
+              : `${peers.map((p) => p.name).join(', ')} are on this board, each with an agent of their own.`
+          }
+        >
+          <span className="led" />
+          <span className="long">{peers[0].name}</span>
+          {peers.length > 1 ? <span className="count">+{peers.length - 1}</span> : null}
+        </span>
+      ) : null}
 
       <button className="btn" onClick={onImport} title="Replace the board with your own notes">
         <IconImport />
