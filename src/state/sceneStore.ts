@@ -74,6 +74,8 @@ interface SceneState {
   resetScene: () => void;
   /** Replace the board with the human's own material. */
   loadTexts: (texts: string[]) => void;
+  /** Replace the board with one that arrived whole, from a shared link. */
+  loadScene: (scene: Scene, note?: string) => void;
 }
 
 const cloneScene = (s: Scene): Scene => ({
@@ -313,6 +315,24 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           at: Date.now(),
           by: 'human',
           text: `Loaded ${texts.length} of your own notes onto the board.`,
+        },
+      ],
+    })),
+
+  loadScene: (scene, note) =>
+    set((s) => ({
+      // Already validated by whoever decoded it; cloned so the caller's object
+      // can never be mutated out from under the store.
+      scene: cloneScene(scene),
+      history: [],
+      humanGrip: [],
+      epoch: s.epoch + 1,
+      log: [
+        {
+          id: uid('log'),
+          at: Date.now(),
+          by: 'system',
+          text: note ?? `Opened a shared board (${scene.nodes.length} notes).`,
         },
       ],
     })),

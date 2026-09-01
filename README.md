@@ -136,8 +136,8 @@ looking at.
 
 ### Bring your own board, and take it with you
 
-The demo board proves the idea on a research-synthesis case; the two ends of the app are
-what make it useful on your own material.
+The demo board proves the idea on a research-synthesis case; the three doors in and out
+are what make it useful on your own material.
 
 - **Your notes** — paste a retro, an interview transcript, a backlog. One line becomes
   one note; list marks, checkboxes and markdown headings are stripped, duplicates are
@@ -145,10 +145,21 @@ what make it useful on your own material.
   hypothesis, action) so every console recipe works on material it has never seen.
 - **Copy** — the organised board leaves as Markdown: groups as headings in the order the
   eye reads them left to right, connections as prose, agent comments as block quotes, and
-  anything the agent wrote still attributed. Without it the agent's work is a nice
-  animation that dies on reload.
+  anything the agent wrote still attributed. This is the board for a person to read.
+- **Share** — a link that carries the board *itself*. Markdown keeps the conclusions and
+  throws away the geometry, which is the part the agent actually produced; this keeps
+  every position, group, edge and annotation. A fully organised 28-note board is a
+  2,267-character URL.
 
-Nothing is uploaded. Both directions run entirely in the page.
+Nothing is uploaded, and there is nowhere to upload it to. The URL **is** the save file:
+the whole scene is compressed into the fragment, which never leaves the browser, and
+opening the link rebuilds the board before the first frame is drawn.
+
+Because a hash is the easiest thing in the world to hand someone, `decodeScene` treats
+every field as hostile: colours must be plain hex (a note's colour reaches a style
+attribute), text and coordinates are clamped, and the invariants the store keeps inside
+single transactions — no edge to a missing note, no note in two regions, no empty region —
+are rebuilt rather than trusted.
 
 ### The one confirmation beat
 
@@ -175,11 +186,12 @@ npm run test     # geometry, chronology and the grip invariant
 npm run build    # production build to dist/
 ```
 
-`npm test` (52 tests) covers the parts where a silent regression would be invisible on
+`npm test` (69 tests) covers the parts where a silent regression would be invisible on
 screen: chronology inference, every layout's centring and totality, overlap relaxation,
 nearest-neighbour visiting, the grip invariant itself asserted at the store level (the
 agent must not move a held note, and must be able to move it again the moment the human
-lets go), import parsing, Markdown export, and the ledger's call formatting. One test
+lets go), import parsing, Markdown export, the ledger's call formatting, and the share link's
+round trip and its refusal of a payload it cannot trust. One test
 pins the seeded demo board to its exact historical coordinates, so the board in the
 screenshots and the video cannot drift.
 
@@ -227,7 +239,7 @@ src/
     recipes.ts  scripted agent behaviours for the in-page console
     callFormat.ts  renders a call compactly enough to sit on the board
   canvas/       React Flow wiring, sticky notes, agent cursor, regions, annotations
-  data/         the seed board, note palette, import parsing, Markdown export
+  data/         the seed board, note palette, import parsing, Markdown and link export
   ui/           top bar, side panel, the call ledger, the consent and import dialogs
 ```
 
@@ -277,7 +289,7 @@ Anywhere the meaningful state is spatial and lives only in the browser:
 ## Stack
 
 React 19 · Vite · TypeScript (strict) · [React Flow](https://reactflow.dev) · Zustand ·
-WebMCP. No backend, no database, no network calls at runtime.
+lz-string · WebMCP. No backend, no database, no network calls at runtime.
 
 ## Licence
 

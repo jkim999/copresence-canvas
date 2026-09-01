@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
 import { useHostStore } from '../agent/webmcp';
 import { toMarkdown } from '../data/exportMarkdown';
+import { shareUrlFor } from '../data/shareLink';
 import {
   IconCheck,
   IconCopy,
   IconImport,
+  IconLink,
   IconPanelClose,
   IconPanelOpen,
   IconProvenance,
@@ -20,7 +22,30 @@ interface Props {
   onImport: () => void;
 }
 
-type CopyState = 'idle' | 'done' | 'failed';
+type Flash = 'idle' | 'done' | 'failed';
+
+/** A button that reports what happened, then goes quiet again. */
+const useFlash = (): [Flash, (next: Flash) => void] => {
+  const [state, setState] = useState<Flash>('idle');
+
+  useEffect(() => {
+    if (state === 'idle') return;
+    const t = setTimeout(() => setState('idle'), 1800);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  return [state, setState];
+};
+
+const copyText = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard access can be denied outright — the caller says so out loud.
+    return false;
+  }
+};
 
 export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const transport = useHostStore((s) => s.transport);
@@ -34,28 +59,37 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const resetScene = useSceneStore((s) => s.resetScene);
   const scene = useSceneStore((s) => s.scene);
   const pushLog = useSceneStore((s) => s.pushLog);
-  const [copied, setCopied] = useState<CopyState>('idle');
+  const [copied, flashCopied] = useFlash();
+  const [shared, flashShared] = useFlash();
 
   const hasAgentAction = history.some((h) => h.by === 'agent');
 
-  useEffect(() => {
-    if (copied === 'idle') return;
-    const t = setTimeout(() => setCopied('idle'), 1800);
-    return () => clearTimeout(t);
-  }, [copied]);
+  const blocked = () => pushLog('system', 'The browser blocked clipboard access — nothing was copied.');
 
-  // The board has to be able to leave the page, or the agent's work dies on reload.
+  // Markdown is the board for a human to read.
   const copyBoard = async () => {
-    const markdown = toMarkdown(scene);
-    try {
-      await navigator.clipboard.writeText(markdown);
-      setCopied('done');
+    if (await copyText(toMarkdown(scene))) {
+      flashCopied('done');
       pushLog('human', `Copied the board as Markdown (${scene.nodes.length} notes).`);
-    } catch {
-      // Clipboard access can be denied outright; say so rather than failing silently.
-      setCopied('failed');
-      pushLog('system', 'The browser blocked clipboard access — nothing was copied.');
+      return;
     }
+    flashCopied('failed');
+    blocked();
+  };
+
+  // A link is the board itself — geometry, edges, regions and all. There is no
+  // server, so the URL is the only place a board can be saved to.
+  const shareBoard = async () => {
+    const url = shareUrlFor(scene, window.location.href);
+    // Put it in the address bar too, so what the human sees is what they sent.
+    window.history.replaceState(null, '', url);
+    if (await copyText(url)) {
+      flashShared('done');
+      pushLog('human', `Copied a link to this board (${url.length} characters).`);
+      return;
+    }
+    flashShared('failed');
+    blocked();
   };
 
   return (
@@ -105,6 +139,16 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
         {copied === 'done' ? <IconCheck /> : <IconCopy />}
         <span className="label">
           {copied === 'done' ? 'Copied' : copied === 'failed' ? 'Blocked' : 'Copy'}
+        </span>
+      </button>
+      <button
+        className={`btn ${shared === 'done' ? 'on' : ''}`}
+        onClick={shareBoard}
+        title="Copy a link that carries this exact board — positions, groups and all"
+      >
+        {shared === 'done' ? <IconCheck /> : <IconLink />}
+        <span className="label">
+          {shared === 'done' ? 'Link copied' : shared === 'failed' ? 'Blocked' : 'Share'}
         </span>
       </button>
 

@@ -132,3 +132,10 @@ export const IconCheck = ({ size = 14 }: IconProps) => (
     <path d="m3.2 8.4 3.1 3.1 6.5-6.9" />
   </svg>
 );
+
+export const IconLink = ({ size = 14 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M6.7 9.3a2.6 2.6 0 0 0 3.9.3l2-2a2.6 2.6 0 0 0-3.7-3.7l-1.1 1.1" />
+    <path d="M9.3 6.7a2.6 2.6 0 0 0-3.9-.3l-2 2a2.6 2.6 0 0 0 3.7 3.7l1.1-1.1" />
+  </svg>
+);
