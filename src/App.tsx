@@ -8,6 +8,7 @@ import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ImportDialog } from './ui/ImportDialog';
 import { buildTools } from './agent/tools';
 import { exposeForConsole, instrument, registerTools } from './agent/webmcp';
+import { connectBoard } from './sync/bind';
 export const App = () => {
   const [panelOpen, setPanelOpen] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
@@ -22,6 +23,14 @@ export const App = () => {
     exposeForConsole(tools);
     return unregister;
   }, [tools]);
+
+  // Every tab on this URL is a peer. No room to name, no server to join: the
+  // second tab you open is already a second person, with its own agent.
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const connection = connectBoard();
+    return connection.stop;
+  }, []);
 
   const openAt = (next: Tab) => {
     setTab(next);
