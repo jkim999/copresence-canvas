@@ -109,10 +109,25 @@ export const readPresence = (raw: unknown): Presence | null => {
 };
 
 /**
- * How long a silent client stays in the room. Matches `outdatedTimeout` in
- * y-protocols, which is a module constant there with no per-instance override.
+ * How long a silent client stays in the room.
+ *
+ * This has to be read against the *worst-case* heartbeat, not the nominal one.
+ * Awareness re-announces every 15s, but a browser throttles timers in a hidden
+ * tab — to 1Hz immediately, and after five minutes hidden to roughly once a
+ * minute. A tab driven by an agent is hidden essentially all the time, so the
+ * interval between two announcements from a perfectly healthy peer routinely
+ * exceeds a minute.
+ *
+ * y-protocols' own 30s `outdatedTimeout` is therefore too short here, and
+ * matching it was a mistake worth naming: it dropped peers that were alive and
+ * merely quiet, which made the grip fail *open* — the page would hand you a
+ * note somebody else was holding. A ghost that lingers is a nuisance; a
+ * refusal that stops refusing is the product breaking.
+ *
+ * So the timeout is generous, and it only ever governs the crash path: a tab
+ * that closes properly says goodbye and its notes come free at once.
  */
-export const PRESENCE_TTL_MS = 30_000;
+export const PRESENCE_TTL_MS = 90_000;
 
 /**
  * Whether a client has been heard from recently enough to still count.
@@ -150,6 +165,44 @@ const statesOf = (
     if (p) out.push(p);
   });
   return out;
+};
+
+/**
+ * The clients worth telling a newcomer about.
+ *
+ * Not `meta.keys()`, which is every client ever seen. `applyAwarenessUpdate`
+ * stamps whatever it receives as heard-from *now*, so relaying an ancient entry
+ * resurrects it on the far side — and with two tabs each catching the other up,
+ * a peer that left half an hour ago never dies. It also holds a vote it can
+ * never cast, which is enough to time out every whole-board change.
+ *
+ * A goodbye still has to travel: a tab that has just left is absent from its own
+ * states but present in meta with a *recent* timestamp, and that message is what
+ * frees the notes it was holding. So the filter is recency, not presence.
+ */
+export const liveClients = (awareness: Awareness, now: number = Date.now()): number[] => {
+  const out: number[] = [];
+  awareness.meta.forEach((meta, clientId) => {
+    if (clientId === awareness.clientID || now - meta.lastUpdated <= PRESENCE_TTL_MS) {
+      out.push(clientId);
+    }
+  });
+  return out;
+};
+
+/**
+ * How long ago the most recently heard-from peer was heard, which is the age of
+ * the freshest evidence that anybody else is still there.
+ */
+export const heardAgoMs = (awareness: Awareness, now: number = Date.now()): number => {
+  let freshest = Infinity;
+  awareness.getStates().forEach((_raw, clientId) => {
+    if (clientId === awareness.clientID) return;
+    const meta = awareness.meta.get(clientId);
+    if (meta === undefined) return;
+    freshest = Math.min(freshest, now - meta.lastUpdated);
+  });
+  return freshest;
 };
 
 /** Everyone but you. */

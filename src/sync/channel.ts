@@ -5,7 +5,7 @@ import {
   encodeAwarenessUpdate,
   removeAwarenessStates,
 } from 'y-protocols/awareness';
-import { leave } from './presence';
+import { leave, liveClients } from './presence';
 import type { ConfirmRequest } from '../agent/confirm';
 import type { ActorId } from '../state/types';
 
@@ -213,7 +213,10 @@ export const openSession = (
         // Somebody just arrived. Hand them the whole board and everyone we can
         // see, because they have no history and no way to ask for one.
         post({ t: DOC, u: Y.encodeStateAsUpdate(doc) });
-        post({ t: AWARE, u: encodeAwarenessUpdate(awareness, [...awareness.meta.keys()]) });
+        // Only clients we have actually heard from recently. Relaying the whole
+        // of `meta` resurrects the long-dead on the receiving side, because
+        // applying an update marks every client in it as heard-from now.
+        post({ t: AWARE, u: encodeAwarenessUpdate(awareness, liveClients(awareness)) });
       }
     } catch {
       // A corrupt or mismatched update is that peer's problem, not the board's.

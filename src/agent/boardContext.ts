@@ -1,4 +1,4 @@
-import { usePeerStore } from '../sync/peers';
+import { roomView } from '../sync/peers';
 import { disambiguate, me, myAgent, seatName } from '../state/actors';
 import { PRESENCE_TTL_MS } from '../sync/presence';
 import type { ActorId } from '../state/types';
@@ -82,8 +82,8 @@ export interface BoardContext {
 }
 
 export const boardContext = (): BoardContext => {
-  const { peers, at } = usePeerStore.getState();
-  const confirmedAgo = Math.round((Date.now() - at) / 1000);
+  const { peers, heardAgoMs } = roomView();
+  const confirmedAgo = Number.isFinite(heardAgoMs) ? Math.round(heardAgoMs / 1000) : 0;
   // Past a peer TTL the list is a cache, not an observation, and saying so is
   // the difference between an agent that hedges and one that is confidently
   // wrong about who is in the room.

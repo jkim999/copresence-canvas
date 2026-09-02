@@ -13,6 +13,7 @@ import {
   holdsFrom,
   holdsOf,
   leave,
+  liveClients,
   peersOf,
   publish,
   readPresence,
@@ -269,5 +270,58 @@ describe('a peer that stopped heartbeating', () => {
 
     expect(everyoneOn(a).map((p) => p.actor)).toEqual([ALEX]);
     expect(holdsFrom(a)).toEqual({ n_0: ALEX });
+  });
+});
+
+/**
+ * Catching a newcomer up used to mean shipping every client in `meta`, and
+ * `applyAwarenessUpdate` stamps each one as heard-from *now* on the receiving
+ * side. So a peer that had been gone for half an hour was resurrected by every
+ * arrival, and two tabs kept a dead third alive between them indefinitely — no
+ * expiry could reach it, because its clock was being reset faster than it ran.
+ *
+ * Observed: two tabs, both freshly reloaded, each reporting a third participant
+ * whose id had been minted thirty-five minutes earlier. It also broke consent,
+ * since a seat that cannot answer still counted toward unanimity.
+ */
+describe('catching a newcomer up', () => {
+  const stale = (a: Awareness, client: number, ms: number): void => {
+    const meta = a.meta.get(client)!;
+    a.meta.set(client, { ...meta, lastUpdated: meta.lastUpdated - ms });
+  };
+
+  it('does not pass on a peer that went silent long ago', () => {
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: ALEX });
+    publish(b, { actor: BO });
+    gossip(a, b);
+
+    stale(a, b.clientID, PRESENCE_TTL_MS + 1);
+
+    expect(liveClients(a)).not.toContain(b.clientID);
+  });
+
+  it('still passes on a goodbye, which is fresh news that frees notes', () => {
+    // A tab that has just left is absent from its own states but present in
+    // meta with a recent timestamp. Dropping it would strand its held notes.
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: ALEX });
+    publish(b, { actor: BO, holding: ['n_1'] });
+    gossip(a, b);
+
+    leave(b);
+    gossip(a, b);
+
+    expect(liveClients(a)).toContain(b.clientID);
+  });
+
+  it('always includes you, however long you have sat still', () => {
+    const [, a] = seat();
+    publish(a, { actor: ALEX });
+    stale(a, a.clientID, PRESENCE_TTL_MS * 10);
+
+    expect(liveClients(a)).toContain(a.clientID);
   });
 });

@@ -4,8 +4,16 @@ import type { ActorId, Scene } from '../state/types';
 import { useSceneStore } from '../state/sceneStore';
 import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
-import { holdsOf, peersOf, publish, readPresence, type Cursor, type Presence } from './presence';
-import { setPeerCursors, setPeers, usePeerStore } from './peers';
+import {
+  heardAgoMs,
+  holdsOf,
+  peersOf,
+  publish,
+  readPresence,
+  type Cursor,
+  type Presence,
+} from './presence';
+import { setPeerCursors, setPeers, setRoomSource } from './peers';
 import { clearPendingShare, shareWasDisplaced } from '../data/pendingShare';
 import { openSession, roomFromLocation, type Session } from './channel';
 import { setConsentTransport, useConfirmStore } from '../agent/confirm';
@@ -204,6 +212,9 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   };
   // `change`, not `update`: awareness heartbeats every few seconds and only
   // `change` means somebody's state actually differs.
+  // Anything that must not decide on stale membership reads through this.
+  setRoomSource(() => ({ peers: peersOf(awareness), heardAgoMs: heardAgoMs(awareness) }));
+
   awareness.on('change', pullPresence);
 
   // --- store -> doc and awareness -------------------------------------------
@@ -270,7 +281,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   setConsentTransport({
     ask: (id, req) => session.ask(id, me(), seatName(me()), req),
     reply: (id, ok) => session.reply(id, me(), ok),
-    peers: () => usePeerStore.getState().peers.map((p) => p.actor),
+    // Live, not cached: a seat that has left must not keep a vote it cannot cast.
+    peers: () => peersOf(awareness).map((p) => p.actor),
   });
 
   // The ledger is the evidence that a model decided something. Kept per-browser
@@ -301,6 +313,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     setCallTransport(null);
     if (broadcasting === awareness) broadcasting = null;
     setPeers([]);
+    setRoomSource(null);
     setPeerCursors([]);
     awareness.destroy();
     doc.destroy();

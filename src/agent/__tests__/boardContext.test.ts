@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { boardContext, pacing } from '../boardContext';
-import { usePeerStore } from '../../sync/peers';
+import { setRoomSource, usePeerStore } from '../../sync/peers';
+import { PRESENCE_TTL_MS } from '../../sync/presence';
 import { useSceneStore } from '../../state/sceneStore';
 import { agentId, humanId, me, myAgent, seatName, takeSeat } from '../../state/actors';
 
@@ -26,6 +27,7 @@ const peer = (actor: string, holding: string[] = [], agent: string | null = null
 
 beforeEach(() => {
   usePeerStore.setState({ peers: [], at: Date.now() });
+  setRoomSource(null);
   useSceneStore.getState().clearGrip();
   takeSeat();
 });
@@ -106,14 +108,56 @@ describe('an agent asking how much to trust the peer list', () => {
   });
 
   it('warns in its own words once the list is older than a peer TTL', () => {
-    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 45_000 });
+    // Derived from the constant rather than a literal: the TTL has already been
+    // changed once, and a hard-coded 45s silently stopped testing anything.
+    const past = PRESENCE_TTL_MS + 5_000;
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - past });
     const ctx = boardContext();
-    expect(ctx.peersConfirmedSecondsAgo).toBe(45);
+    expect(ctx.peersConfirmedSecondsAgo).toBe(Math.round(past / 1000));
     expect(ctx.note).toMatch(/stale|may have|no longer/i);
   });
 
   it('does not cry stale when the room was confirmed a moment ago', () => {
     usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 1_000 });
     expect(boardContext().note).not.toMatch(/stale/i);
+  });
+});
+
+/**
+ * The peer list was a cache written only when awareness fired a change event —
+ * and those are throttled in a hidden tab. Two agents arriving cold both saw a
+ * phantom third seat for their entire run, because the tab that had left was
+ * still in the cache and nothing woke up to remove it.
+ *
+ * It was not merely cosmetic. The consent quorum is drawn from the same list,
+ * so a departed seat kept a vote it could never cast, and every whole-board
+ * change both agents attempted timed out waiting for a peer who was gone.
+ */
+describe('the room as it is, not as it was last cached', () => {
+  it('asks a live source rather than trusting the cache', () => {
+    const live = humanId();
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 90_000 });
+    setRoomSource(() => ({ peers: [peer(live)], heardAgoMs: 500 }));
+
+    const ctx = boardContext();
+    expect(ctx.others.map((o) => o.actor)).toEqual([live]);
+    expect(ctx.peersConfirmedSecondsAgo).toBe(1);
+  });
+
+  it('drops a seat that has gone, so it cannot hold a vote hostage', () => {
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() });
+    setRoomSource(() => ({ peers: [], heardAgoMs: 0 }));
+
+    const ctx = boardContext();
+    expect(ctx.alone).toBe(true);
+    expect(ctx.others).toEqual([]);
+  });
+
+  it('falls back to the cache when nothing is connected at all', () => {
+    const cached = humanId();
+    setRoomSource(null);
+    usePeerStore.setState({ peers: [peer(cached)], at: Date.now() });
+
+    expect(boardContext().others.map((o) => o.actor)).toEqual([cached]);
   });
 });
