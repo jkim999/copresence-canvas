@@ -31,6 +31,18 @@ import { openSession, roomFromLocation, type Session } from './channel';
  */
 const GRACE_MS = 250;
 
+/**
+ * How long the store may run ahead of the wire.
+ *
+ * An agent animating notes writes the scene on every animation frame, and each
+ * write used to be a message, and each message a whole-scene read, repair and
+ * store write on the receiving side. Measured on a 28-note board: while one tab
+ * animated, a read-only tool call in the other went from about 15ms to roughly
+ * six seconds. Frames are coalesced instead — the board is still the board a
+ * frame or two later, and nothing is ever dropped, only merged.
+ */
+const PUSH_MS = 40;
+
 export interface Connection {
   room: string;
   doc: Y.Doc;
@@ -81,7 +93,7 @@ let broadcasting: Awareness | null = null;
 /** Tell the room where this tab's pointer is, in flow coordinates. */
 export const reportCursor = (cursor: Cursor | null): void => {
   if (!broadcasting) return;
-  publish(broadcasting, { actor: me(), name: seatName(me()), cursor });
+  publish(broadcasting, { actor: me(), name: seatName(me()), agent: myAgent(), cursor });
 };
 
 export const connectBoard = (options: ConnectOptions = {}): Connection => {
@@ -156,7 +168,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
    * validates shape but not identity, and a state wearing this tab's name would
    * otherwise be folded into what this tab republishes as its own hands.
    */
-  const impostor = (p: Presence): boolean => p.actor === me() || p.actor === myAgent();
+  const impostor = (p: Presence): boolean =>
+    p.actor === me() || p.actor === myAgent() || p.agent === me() || p.agent === myAgent();
 
   const pullPresence = (): void => {
     const others = peersOf(awareness).filter((p) => !impostor(p));
@@ -182,15 +195,43 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
    */
   const pushGrip = (): void => {
     const { claims } = useSceneStore.getState();
-    const holding = [...new Set([...(claims[me()] ?? []), ...(claims[myAgent()] ?? [])])].sort();
-    if (sameIds(holding, published)) return;
-    published = holding;
-    publish(awareness, { actor: me(), name: seatName(me()), holding });
+    const holding = [...(claims[me()] ?? [])].sort();
+    const agentHolding = [...(claims[myAgent()] ?? [])].sort();
+    // Both hands, so the comparison covers both.
+    const signature = [...holding, '|', ...agentHolding];
+    if (sameIds(signature, published)) return;
+    published = signature;
+    publish(awareness, {
+      actor: me(),
+      name: seatName(me()),
+      holding,
+      agent: myAgent(),
+      agentHolding,
+    });
+  };
+
+  let pushTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const flushScene = (): void => {
+    if (pushTimer === undefined) return;
+    clearTimeout(pushTimer);
+    pushTimer = undefined;
+    writeScene(doc, useSceneStore.getState().scene, ORIGIN_LOCAL);
+  };
+
+  const schedulePush = (): void => {
+    if (pushTimer !== undefined) return;
+    pushTimer = setTimeout(() => {
+      pushTimer = undefined;
+      writeScene(doc, useSceneStore.getState().scene, ORIGIN_LOCAL);
+    }, PUSH_MS);
   };
 
   const unsubscribe = useSceneStore.subscribe((state, prev) => {
     if (applying) return;
-    if (live && state.scene !== prev.scene) writeScene(doc, state.scene, ORIGIN_LOCAL);
+    if (live && state.scene !== prev.scene) schedulePush();
+    // A hand closing or opening is not a frame of animation, and waiting on it
+    // is what lets two people grab the same note.
     if (state.claims !== prev.claims) pushGrip();
   });
 
@@ -199,7 +240,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   takeSeat();
 
   // Be visible to the room straight away, board or no board.
-  publish(awareness, { actor: me(), name: seatName(me()) });
+  publish(awareness, { actor: me(), name: seatName(me()), agent: myAgent() });
   broadcasting = awareness;
 
   const grace = setTimeout(() => {
@@ -213,6 +254,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     stopped = true;
     clearTimeout(grace);
     unsubscribe();
+    // Whatever was still coalescing belongs to the board, not to this tab.
+    if (live) flushScene();
     doc.off('update', onDoc);
     awareness.off('change', pullPresence);
     // Says goodbye on the way out, which is what frees anything still in hand.

@@ -143,3 +143,48 @@ describe('a note in someone else\'s hand', () => {
     expect(store().getNode(free.id)).toBeUndefined();
   });
 });
+
+describe('rank between a hand and a machine', () => {
+  beforeEach(() => {
+    store().resetScene();
+    store().clearGrip();
+  });
+
+  it('lets a person take a note an agent is carrying', () => {
+    // The canvas already promises this in so many words — "keep dragging, you
+    // are not blocked" — so an agent's grip must not be the thing that blocks.
+    const held = node();
+    store().setGrip([held.id], LOCAL_AGENT);
+
+    store().setGrip([held.id], ALEX);
+
+    expect(store().heldBy(held.id)).toBe(ALEX);
+  });
+
+  it('does not let an agent take a note out of a person\'s hand', () => {
+    const held = node();
+    store().setGrip([held.id], ALEX);
+
+    store().setGrip([held.id], LOCAL_AGENT);
+
+    expect(store().heldBy(held.id)).toBe(ALEX);
+  });
+
+  it('does not let one agent take a note out of another agent\'s', () => {
+    const held = node();
+    store().setGrip([held.id], BO);
+
+    store().setGrip([held.id], LOCAL_AGENT);
+
+    expect(store().heldBy(held.id)).toBe(BO);
+  });
+
+  it('does not let one person take a note out of another person\'s', () => {
+    const held = node();
+    store().setGrip([held.id], ALEX);
+
+    store().setGrip([held.id], LOCAL_HUMAN);
+
+    expect(store().heldBy(held.id)).toBe(ALEX);
+  });
+});

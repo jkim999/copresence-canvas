@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { moveCursorTo, tweenNodeTo, useCursorStore } from '../motion';
 import { useSceneStore } from '../../state/sceneStore';
-import { LOCAL_HUMAN } from '../../state/actors';
+import { LOCAL_HUMAN, myAgent } from '../../state/actors';
 
 /**
  * The animation loop is where a tool call goes to wait, so every promise it
@@ -81,5 +81,34 @@ describe('a cursor move that is replaced mid-flight', () => {
     expect(await within(first, 900)).toBe('settled');
     await second;
     expect(useCursorStore.getState().x).toBe(600);
+  });
+});
+
+describe('a note the agent is carrying', () => {
+  it('is held by the agent for as long as it is in flight', async () => {
+    // Multiplayer gave every tab an agent of its own, and nothing anywhere took
+    // a grip on the agent's behalf — so two agents arranging overlapping notes
+    // both passed the refusal check and fought over every position.
+    const target = store().scene.nodes[0];
+    const flight = tweenNodeTo(target.id, 400, 400, 200);
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(store().heldBy(target.id)).toBe(myAgent());
+
+    // And the agent's own hand is not a reason to let go of its own note.
+    expect(await flight).toBe('landed');
+    expect(store().heldBy(target.id)).toBeNull();
+  });
+
+  it('comes free the moment a person reaches for it', async () => {
+    const target = store().scene.nodes[0];
+    const flight = tweenNodeTo(target.id, 400, 400, 400);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(store().heldBy(target.id)).toBe(myAgent());
+
+    store().setGrip([target.id], LOCAL_HUMAN);
+
+    expect(await flight).toBe('yielded');
+    expect(store().heldBy(target.id)).toBe(LOCAL_HUMAN);
   });
 });

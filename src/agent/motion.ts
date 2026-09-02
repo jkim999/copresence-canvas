@@ -91,16 +91,24 @@ let cursorTween: CursorTween | null = null;
 
 const hasWork = (): boolean => nodeTweens.size > 0 || cursorTween !== null;
 
+const sameIds = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** What the agent last told the board it had hold of. */
+let claimed: string[] = [];
+
 const step = (now: number): void => {
   lastTick = now;
   const positions: Record<string, { x: number; y: number }> = {};
   const { grip } = useSceneStore.getState();
   const finished: NodeTween[] = [];
 
+  const agent = myAgent();
   const stolen = new Set<string>();
   for (const tween of nodeTweens.values()) {
-    // Someone put a hand on this note. Yield it immediately and permanently.
-    if (grip[tween.id] !== undefined) {
+    // Someone *else* put a hand on this note. Yield it immediately and
+    // permanently — the agent's own claim below is not a reason to let go.
+    if (grip[tween.id] !== undefined && grip[tween.id] !== agent) {
       stolen.add(tween.id);
       finished.push(tween);
       continue;
@@ -120,6 +128,16 @@ const step = (now: number): void => {
   for (const tween of finished) {
     nodeTweens.delete(tween.id);
     tween.resolve(stolen.has(tween.id) ? 'yielded' : 'landed');
+  }
+
+  // The agent holds what it is carrying, for exactly as long as it carries it.
+  // Without this, two agents on one board both pass the refusal check and fight
+  // over every position; and it needs no release path, because a tween that
+  // ends — landed, yielded or dropped — leaves the map on its own.
+  const carrying = [...nodeTweens.keys()].sort();
+  if (!sameIds(carrying, claimed)) {
+    claimed = carrying;
+    useSceneStore.getState().setGrip(carrying, agent);
   }
 
   if (cursorTween && !cursorTween.frame(now)) cursorTween = null;

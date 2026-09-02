@@ -347,3 +347,64 @@ describe('two tabs opening a room together', () => {
     expect(readScene(c.doc).nodes.map((n) => n.id)).toEqual(mine);
   });
 });
+
+describe('a tab with two hands of its own', () => {
+  it('does not publish the agent\'s hold as the person\'s', async () => {
+    // One tab, two actors with different rank. If both hands go out under one
+    // name, the agent's own claim comes back attributed to the human — and the
+    // agent then yields to what it thinks is a person, which is itself.
+    const room = newRoom();
+    const other = otherTab(room);
+    const c = connect(room);
+    await settle();
+
+    const target = store().scene.nodes[0];
+    store().setGrip([target.id], myAgent());
+    await settle();
+
+    expect(store().heldBy(target.id)).toBe(myAgent());
+    expect(holdsFrom(other.awareness)[target.id]).toBe(myAgent());
+    expect(c.awareness.getLocalState()).toBeDefined();
+  });
+});
+
+describe('a board being animated', () => {
+  it('does not put every frame on the wire', async () => {
+    // Measured, not guessed: while one tab animated, a read-only tool call in
+    // the other took about six seconds instead of fifteen milliseconds. Every
+    // frame was a message, and every message a whole-scene read, repair and
+    // store write on the receiving side.
+    const room = newRoom();
+    const other = otherTab(room);
+    connect(room);
+    await settle();
+
+    let updates = 0;
+    other.doc.on('update', () => {
+      updates += 1;
+    });
+
+    const target = store().scene.nodes[0];
+    for (let i = 0; i < 20; i += 1) store().moveNode(target.id, i * 10, 0, me());
+    await settle(150);
+
+    expect(updates).toBeLessThan(5);
+    // Coalesced, never dropped: the last position still has to arrive.
+    expect(readScene(other.doc).nodes.find((n) => n.id === target.id)!.x).toBe(190);
+  });
+
+  it('flushes what it was holding when the tab goes', async () => {
+    const room = newRoom();
+    const other = otherTab(room);
+    const c = connect(room);
+    await settle();
+
+    const target = store().scene.nodes[0];
+    store().moveNode(target.id, 640, 480, me());
+    c.stop();
+    connections.length = 0;
+    await settle();
+
+    expect(readScene(other.doc).nodes.find((n) => n.id === target.id)).toMatchObject({ x: 640 });
+  });
+});

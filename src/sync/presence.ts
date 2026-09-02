@@ -1,6 +1,6 @@
 import type { Awareness } from 'y-protocols/awareness';
 import type { ActorId } from '../state/types';
-import { LOCAL_HUMAN } from '../state/actors';
+import { LOCAL_HUMAN, isAgent } from '../state/actors';
 
 /**
  * Who is here, what they have hold of, and where their pointer is.
@@ -35,13 +35,33 @@ export interface Cursor {
   y: number;
 }
 
+/**
+ * One tab, but two hands, and they do not rank the same.
+ *
+ * The person and the agent paired with them share a screen and a wire, so a
+ * peer state has to name both — publishing them under one actor sends the
+ * agent's own claim back attributed to the human, and the agent then politely
+ * yields to what it takes for a person and is in fact itself.
+ */
 export interface Presence {
   actor: ActorId;
   name: string;
   holding: string[];
+  /** This tab's agent, when it has one. */
+  agent: ActorId | null;
+  agentHolding: string[];
   selected: string[];
   cursor: Cursor | null;
 }
+
+/** Every hand in one peer state, each under the actor that owns it. */
+export const handsOf = (p: Presence): { actor: ActorId; ids: string[] }[] =>
+  p.agent === null
+    ? [{ actor: p.actor, ids: p.holding }]
+    : [
+        { actor: p.actor, ids: p.holding },
+        { actor: p.agent, ids: p.agentHolding },
+      ];
 
 // --- reading ---------------------------------------------------------------
 
@@ -76,6 +96,11 @@ export const readPresence = (raw: unknown): Presence | null => {
     actor: r.actor,
     name: typeof r.name === 'string' ? r.name.slice(0, MAX_NAME) : 'someone',
     holding: ids(r.holding),
+    agent:
+      typeof r.agent === 'string' && r.agent.length > 0 && r.agent.length <= MAX_ACTOR
+        ? r.agent
+        : null,
+    agentHolding: ids(r.agentHolding),
     selected: ids(r.selected),
     cursor: cursorOf(r.cursor),
   };
@@ -99,17 +124,34 @@ export const everyoneOn = (awareness: Awareness): Presence[] => statesOf(awarene
 
 // --- folding many hands into one map ---------------------------------------
 
-const claim = (states: Presence[], pick: (p: Presence) => string[]): Record<string, ActorId> => {
+/**
+ * Who wins when two hands close on the same note in the same instant.
+ *
+ * A person outranks a machine, which is the rule the canvas already promises
+ * out loud — an agent's grip must never be what stops someone dragging. The
+ * ids cannot carry that rule on their own, since every agent id begins `a_`
+ * and every human `h_`, so it is stated here. Between two of a kind there is
+ * no rank and the lowest id decides: arbitrary, but the same answer on every
+ * peer, which is the only property that matters. If they disagreed, each tab
+ * would think it owned the note and both would move it.
+ */
+const outranks = (challenger: ActorId, holder: ActorId): boolean => {
+  const machine = isAgent(challenger);
+  if (machine !== isAgent(holder)) return !machine;
+  return challenger < holder;
+};
+
+const claim = (
+  states: Presence[],
+  pick: (p: Presence) => { actor: ActorId; ids: string[] }[],
+): Record<string, ActorId> => {
   const out: Record<string, ActorId> = {};
   for (const p of states) {
-    for (const id of pick(p)) {
-      const held = out[id];
-      // Two peers can reach for the same note in the same instant, and there is
-      // no clock that orders them. Lowest actor id wins: arbitrary, but the
-      // same answer on every peer, which is the only property that matters. If
-      // they disagreed, each tab would think it owned the note and both would
-      // move it.
-      if (held === undefined || p.actor < held) out[id] = p.actor;
+    for (const hand of pick(p)) {
+      for (const id of hand.ids) {
+        const held = out[id];
+        if (held === undefined || outranks(hand.actor, held)) out[id] = hand.actor;
+      }
     }
   }
   return out;
@@ -117,15 +159,14 @@ const claim = (states: Presence[], pick: (p: Presence) => string[]): Record<stri
 
 /** Who is holding which note, across every peer on the board. */
 /** Resolve holds from an already-assembled list of states. */
-export const holdsOf = (states: Presence[]): Record<string, ActorId> =>
-  claim(states, (p) => p.holding);
+export const holdsOf = (states: Presence[]): Record<string, ActorId> => claim(states, handsOf);
 
 export const holdsFrom = (awareness: Awareness): Record<string, ActorId> =>
-  claim(everyoneOn(awareness), (p) => p.holding);
+  holdsOf(everyoneOn(awareness));
 
 /** Who has which note selected. Selection is a hand's business, not the board's. */
 export const selectionsFrom = (awareness: Awareness): Record<string, ActorId> =>
-  claim(everyoneOn(awareness), (p) => p.selected);
+  claim(everyoneOn(awareness), (p) => [{ actor: p.actor, ids: p.selected }]);
 
 // --- writing ---------------------------------------------------------------
 
@@ -133,6 +174,8 @@ const BLANK: Presence = {
   actor: LOCAL_HUMAN,
   name: 'You',
   holding: [],
+  agent: null,
+  agentHolding: [],
   selected: [],
   cursor: null,
 };

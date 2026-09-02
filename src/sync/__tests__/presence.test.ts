@@ -6,7 +6,7 @@ import {
   encodeAwarenessUpdate,
   removeAwarenessStates,
 } from 'y-protocols/awareness';
-import { MAX_IDS, holdsFrom, leave, peersOf, publish, readPresence } from '../presence';
+import { MAX_IDS, holdsFrom, holdsOf, leave, peersOf, publish, readPresence } from '../presence';
 import { agentId, humanId } from '../../state/actors';
 
 /**
@@ -43,8 +43,27 @@ describe('reading a peer state off the wire', () => {
   });
 
   it('keeps a well-formed state whole', () => {
-    expect(readPresence({ actor: ALEX, name: 'Alex', holding: ['n_0'], selected: [], cursor: { x: 1, y: 2 } }))
-      .toEqual({ actor: ALEX, name: 'Alex', holding: ['n_0'], selected: [], cursor: { x: 1, y: 2 } });
+    const state = {
+      actor: ALEX,
+      name: 'Alex',
+      holding: ['n_0'],
+      agent: BOS_AGENT,
+      agentHolding: ['n_1'],
+      selected: [],
+      cursor: { x: 1, y: 2 },
+    };
+
+    expect(readPresence(state)).toEqual(state);
+  });
+
+  it('reads a peer that has no agent beside it', () => {
+    // An older build, or a tab that never paired one. Its person still holds
+    // notes and must still be able to refuse them.
+    const p = readPresence({ actor: ALEX, name: 'Alex', holding: ['n_0'] })!;
+
+    expect(p.agent).toBeNull();
+    expect(p.agentHolding).toEqual([]);
+    expect(holdsOf([p])).toEqual({ n_0: ALEX });
   });
 
   it('survives a peer sending nonsense in every field', () => {
@@ -106,6 +125,20 @@ describe('two peers on one board', () => {
     expect(Object.keys(holdsFrom(a))).toEqual(['n_0']);
   });
 
+  it('gives the note to the person when a hand and an agent both grab it', () => {
+    // Agents take grip now, so the tie-break has to carry the rule rather than
+    // leave it to the ids — and the ids say the opposite, since every agent id
+    // begins `a_` and every human id `h_`.
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: BOS_AGENT, holding: ['n_0'] });
+    publish(b, { actor: ALEX, holding: ['n_0'] });
+    gossip(a, b);
+
+    expect(holdsFrom(a)).toEqual({ n_0: ALEX });
+    expect(holdsFrom(b)).toEqual(holdsFrom(a));
+  });
+
   it('does not let a second agent count as its own hand', () => {
     const [, a] = seat();
     const [, b] = seat();
@@ -113,8 +146,8 @@ describe('two peers on one board', () => {
     publish(b, { actor: BOS_AGENT, holding: ['n_0'] });
     gossip(a, b);
 
-    // Agents never take grip in this app, but presence is a wire format and a
-    // peer could still claim one. The merge stays deterministic either way.
+    // Two machines reaching for the same note have no rank between them, so
+    // the id decides. All that matters is that it decides the same way twice.
     expect(holdsFrom(a)).toEqual(holdsFrom(b));
   });
 });

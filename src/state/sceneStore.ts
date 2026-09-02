@@ -334,8 +334,13 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       for (const [nodeId, holder] of Object.entries(s.grip)) {
         if (holder !== by) next[nodeId] = holder;
       }
+      // A person outranks a machine: a hand may take a note an agent is
+      // carrying, because the canvas promises as much in so many words. No
+      // other precedence exists — an agent never takes anything from anyone.
+      const person = !isAgent(by);
       for (const nodeId of nodeIds) {
-        if (next[nodeId] === undefined) next[nodeId] = by;
+        const holder = next[nodeId];
+        if (holder === undefined || (person && isAgent(holder))) next[nodeId] = by;
       }
       return { grip: next, claims: { ...s.claims, [by]: [...nodeIds] } };
     }),

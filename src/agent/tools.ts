@@ -1,6 +1,6 @@
 import { useSceneStore } from '../state/sceneStore';
-import { kindOf } from '../state/actors';
-import { LAYOUT_KINDS, type LayoutKind } from '../state/types';
+import { isAgent, kindOf, myAgent } from '../state/actors';
+import { LAYOUT_KINDS, type ActorId, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
 import {
   addNotes,
@@ -98,7 +98,9 @@ export const buildTools = (): ToolDefinition[] => [
       'See what the human has been doing on the canvas alongside you: which notes they ' +
       'have added, edited or moved recently, and which notes they are physically holding ' +
       'right now. You are both working on this board at the same time — check this before ' +
-      'rearranging an area, and never move a note the human is currently holding.',
+      'rearranging an area, and never move a note the human is currently holding. Other ' +
+      'people, each with an agent of their own, may also be on this board; anything they ' +
+      'or their agents have hold of is reported here and is not yours to move.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -125,22 +127,35 @@ export const buildTools = (): ToolDefinition[] => [
           secondsAgo: Math.round((Date.now() - n.editedAt) / 1000),
         }));
 
-      const holding = Object.keys(state.grip)
-        .map((id) => state.getNode(id))
-        .filter((n): n is NonNullable<typeof n> => Boolean(n))
-        .map((n) => ({ id: n.id, text: n.text }));
+      // Agents take grip too, so "somebody has hold of this" and "a *person*
+      // has hold of this" are no longer the same sentence. Only the second one
+      // is what this tool exists to report; calling a machine's grip a human's
+      // would have the agent deferring to nobody.
+      const notesOf = (holder: (by: ActorId) => boolean) =>
+        Object.entries(state.grip)
+          .filter(([, by]) => holder(by))
+          .map(([id]) => state.getNode(id))
+          .filter((n): n is NonNullable<typeof n> => Boolean(n))
+          .map((n) => ({ id: n.id, text: n.text }));
+
+      const holding = notesOf((by) => !isAgent(by));
+      const machines = notesOf((by) => isAgent(by) && by !== myAgent());
 
       return {
         holdingRightNow: holding,
+        heldByOtherAgents: machines,
         recentlyTouched: touched.slice(0, 20),
         windowSeconds: Math.round(window / 1000),
         note:
           holding.length > 0
             ? 'The human is holding those notes right now. Leave them alone and work elsewhere.'
-            : touched.length > 0
-              ? 'The human is actively working on the notes listed. Consider helping around ' +
-                'them rather than rearranging the area they are in.'
-              : 'The human has not changed anything recently. The board is yours to organise.',
+            : machines.length > 0
+              ? 'Another agent has hold of those notes. It is working on this board too — ' +
+                'leave them where they are and organise somewhere else.'
+              : touched.length > 0
+                ? 'The human is actively working on the notes listed. Consider helping around ' +
+                  'them rather than rearranging the area they are in.'
+                : 'The human has not changed anything recently. The board is yours to organise.',
       };
     },
   },
