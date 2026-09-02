@@ -34,6 +34,16 @@ const resolveNodes = (ids: string[]): SceneNode[] => {
   return ids.map((id) => byId.get(id)).filter((n): n is SceneNode => Boolean(n));
 };
 
+/**
+ * The agent's own narration, for the things the record cannot derive.
+ *
+ * It used to narrate every act — "Arranging 3 notes into a grid" — and the
+ * journal now derives that from the board itself, more accurately and for every
+ * participant rather than just this one. Two accounts of one act, in slightly
+ * different words, is less legible than one. What survives here is what leaves
+ * no trace on the board: a refusal, and work declined as a duplicate. A change
+ * nobody can see in the scene is the only kind worth saying out loud.
+ */
 const log = (text: string) => useSceneStore.getState().pushLog(myAgent(), text);
 
 // ---------------------------------------------------------------------------
@@ -201,7 +211,6 @@ export const arrangeRegion = async (
   }
 
   store.snapshot(label ? `Arrange "${label}" as ${layout}` : `Arrange ${nodes.length} notes as ${layout}`, myAgent());
-  log(`Arranging ${nodes.length} notes into a ${layout.replace('_', ' ')}${label ? ` — "${label}"` : ''}.`);
 
   const raw = applyLayout(nodes, layout, store.scene.edges);
   const targets = relaxOverlaps(
@@ -233,22 +242,45 @@ export interface LinkSpec {
   label: string;
 }
 
+/**
+ * Why a link was not drawn.
+ *
+ * `{ created: 0, skipped: 4 }` was the old answer, and it is the shape of a
+ * result an agent cannot act on: "the ids were wrong", "those notes are already
+ * connected" and "you asked to link a note to itself" are three different
+ * mistakes with three different corrections, and collapsing them into a count
+ * leaves retrying blind as the only available move.
+ */
+export type SkipReason = 'no such note' | 'already linked' | 'same note twice';
+
+export interface SkippedLink extends LinkSpec {
+  reason: SkipReason;
+  /** Which of the two ids the board could not find, when that is the problem. */
+  missing?: string[];
+}
+
 export const findAndLink = async (
   criterion: string,
   links: LinkSpec[],
-): Promise<{ created: number; skipped: LinkSpec[] }> => {
+): Promise<{ created: number; skipped: SkippedLink[] }> => {
   const store = useSceneStore.getState();
   store.snapshot(`Link notes by "${criterion}"`, myAgent());
-  log(`Linking notes by: ${criterion}`);
 
-  const skipped: LinkSpec[] = [];
+  const skipped: SkippedLink[] = [];
   let created = 0;
 
   for (const link of links) {
     const from = useSceneStore.getState().getNode(link.from);
     const to = useSceneStore.getState().getNode(link.to);
     if (!from || !to) {
-      skipped.push(link);
+      const missing = [!from ? link.from : null, !to ? link.to : null].filter(
+        (id): id is string => id !== null,
+      );
+      skipped.push({ ...link, reason: 'no such note', missing });
+      continue;
+    }
+    if (link.from === link.to) {
+      skipped.push({ ...link, reason: 'same note twice' });
       continue;
     }
     await moveCursorTo(centerOf(from).x, centerOf(from).y, { speed: 1.5 });
@@ -257,7 +289,9 @@ export const findAndLink = async (
     await moveCursorTo(centerOf(to).x, centerOf(to).y, { speed: 1.05, mode: 'writing' });
     const edge = useSceneStore.getState().addEdge(link.from, link.to, link.label, myAgent());
     if (edge) created += 1;
-    else skipped.push(link);
+    // The store refuses a duplicate in either direction, and a self-link is
+    // already caught above, so this is the one case left.
+    else skipped.push({ ...link, reason: 'already linked' });
     await wait(60);
   }
 
@@ -293,7 +327,6 @@ export const annotateScene = async (
   }
 
   setCursorMode('writing');
-  log(`Annotating: "${text.slice(0, 70)}${text.length > 70 ? '…' : ''}"`);
   await wait(320);
   const annotation = useSceneStore
     .getState()
@@ -315,7 +348,6 @@ export const summarizeCluster = async (
   if (nodes.length === 0) return { summaryNodeId: null, collapsed: 0, keptInHand: [] };
 
   store.snapshot(`Summarise ${nodes.length} notes`, myAgent());
-  log(`Collapsing ${nodes.length} notes into "${summary}".`);
 
   const c = centroidOf(nodes);
 
@@ -526,7 +558,6 @@ export const addNotes = async (
     created.push(node.id);
     await wait(110);
   }
-  log(`Added ${created.length} note${created.length === 1 ? '' : 's'}.`);
   hideCursor();
   return {
     created,

@@ -139,3 +139,35 @@ describe('summarizeResult names who actually refused', () => {
     expect(line).toContain('12');
   });
 });
+
+describe('the new legibility tools on the ledger line', () => {
+  it('says nothing changed rather than showing an empty count', () => {
+    expect(summarizeResult('what_changed', { changes: [], complete: true })).toBe(
+      'nothing changed',
+    );
+  });
+
+  it('admits on the visible line when the answer is only partial', () => {
+    const out = summarizeResult('what_changed', { changes: [{}, {}], complete: false });
+    expect(out).toBe('2 changes · partial');
+  });
+
+  it('counts the seats that are mid-act, not just the seats', () => {
+    const out = summarizeResult('get_board_context', {
+      others: [{ doing: { verb: 'arranging' } }, { doing: null }],
+    });
+    expect(out).toBe('2 others · 1 mid-act');
+  });
+
+  it('says alone when nobody else is there', () => {
+    expect(summarizeResult('get_board_context', { others: [] })).toBe('alone');
+  });
+
+  it('names why links were skipped, since the reason is the actionable part', () => {
+    const out = summarizeResult('find_and_link', {
+      created: 1,
+      skipped: [{ reason: 'no such note' }, { reason: 'no such note' }, { reason: 'already linked' }],
+    });
+    expect(out).toBe('1 edges drawn · 3 skipped (no such note, already linked)');
+  });
+});

@@ -55,6 +55,23 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       parts.push(`${n} notes`, bytes(JSON.stringify(result).length), 'no screenshot');
       break;
     }
+    case 'what_changed': {
+      const n = count(r.changes);
+      parts.push(n === 0 ? 'nothing changed' : `${n} change${n === 1 ? '' : 's'}`);
+      // A partial answer that reads like a complete one is the failure this
+      // whole tool exists to prevent, so it is said on the visible line too.
+      if (r.complete === false) parts.push('partial');
+      break;
+    }
+    case 'get_board_context': {
+      const others = count(r.others);
+      parts.push(others === 0 ? 'alone' : `${others} other${others === 1 ? '' : 's'}`);
+      const busy = Array.isArray(r.others)
+        ? r.others.filter((o: any) => o?.doing).length
+        : 0;
+      if (busy > 0) parts.push(`${busy} mid-act`);
+      break;
+    }
     case 'get_human_activity': {
       const held = count(r.holdingRightNow);
       const touched = count(r.recentlyTouched);
@@ -70,10 +87,18 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       if (count(r.yieldedToHuman) > 0) parts.push(`yielded ${count(r.yieldedToHuman)} to you`);
       if (count(r.nudgedAside) > 0) parts.push(`nudged ${count(r.nudgedAside)} aside`);
       break;
-    case 'find_and_link':
+    case 'find_and_link': {
       parts.push(`${count(r.created)} edges drawn`);
-      if (count(r.skipped) > 0) parts.push(`${count(r.skipped)} skipped`);
+      // Skips carry their reason now, and the reason is the whole point: an
+      // agent that reads "4 skipped" learns only that something went wrong.
+      const reasons = Array.isArray(r.skipped)
+        ? [...new Set(r.skipped.map((s: any) => String(s?.reason ?? 'skipped')))]
+        : [];
+      if (count(r.skipped) > 0) {
+        parts.push(`${count(r.skipped)} skipped (${reasons.join(', ')})`);
+      }
       break;
+    }
     case 'annotate_scene':
       parts.push(r.anchoredTo ? `pinned to ${r.anchoredTo}` : 'pinned to the board');
       break;

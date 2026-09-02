@@ -1,7 +1,8 @@
 import { roomView } from '../sync/peers';
 import { disambiguate, me, myAgent, seatName } from '../state/actors';
 import { PRESENCE_TTL_MS } from '../sync/presence';
-import type { ActorId } from '../state/types';
+import { describeIntent } from './intent';
+import type { ActorId, Intent } from '../state/types';
 
 /**
  * The answer to "who am I, and who else is here".
@@ -25,6 +26,16 @@ export interface Participant {
   holding: string[];
   /** Whether they have an agent of their own working beside them. */
   hasAgent: boolean;
+  /**
+   * What their agent announced it was about to do, if it is mid-act.
+   *
+   * This is the only forward-looking field on the board. Everything else here
+   * describes a state; this one describes an intention, which is what lets you
+   * choose a different part of the canvas instead of discovering the collision
+   * afterwards. It is `null` far more often than not — an idle seat, a seat
+   * with no agent, or a peer running a build that does not announce.
+   */
+  doing: { verb: string; what: string; ids: string[]; sentence: string } | null;
 }
 
 export interface Pacing {
@@ -93,14 +104,26 @@ export const boardContext = (): BoardContext => {
   // so two participants under one name would make it unreadable.
   const label = disambiguate([me(), ...peers.map((p) => p.actor)]);
 
-  const others = peers.map(
-    (p): Participant => ({
-      seat: label[p.actor] ?? seatName(p.actor),
+  const announcing = (seat: string, doing: Intent | null): Participant['doing'] =>
+    doing === null
+      ? null
+      : {
+          verb: doing.verb,
+          what: doing.what,
+          ids: [...doing.ids],
+          sentence: describeIntent(doing, seat),
+        };
+
+  const others = peers.map((p): Participant => {
+    const seat = label[p.actor] ?? seatName(p.actor);
+    return {
+      seat,
       actor: p.actor,
       holding: [...p.holding],
       hasAgent: p.agent !== null,
-    }),
-  );
+      doing: announcing(seat, p.doing),
+    };
+  });
 
   const alone = others.length === 0;
   const names = others.map((o) => o.seat);
@@ -130,6 +153,8 @@ export const boardContext = (): BoardContext => {
         'board right now, each possibly with an agent of their own. Notes listed under ' +
         '`holding` are in someone else’s hand: the page will refuse to move them, and that ' +
         'refusal is the design working, not an error to route around. When a result names a ' +
-        'seat, it is one of the seats listed here.') + staleWarning,
+        'seat, it is one of the seats listed here. A seat with a `doing` is mid-act right ' +
+        'now: those notes are about to move, so pick somewhere else rather than racing it.') +
+      staleWarning,
   };
 };

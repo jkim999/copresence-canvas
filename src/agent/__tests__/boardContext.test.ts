@@ -16,6 +16,7 @@ import { agentId, humanId, me, myAgent, seatName, takeSeat } from '../../state/a
  */
 
 const peer = (actor: string, holding: string[] = [], agent: string | null = null) => ({
+  doing: null,
   actor,
   name: seatName(actor),
   holding,
@@ -55,7 +56,10 @@ describe('an agent asking who else is here', () => {
     const ctx = boardContext();
     expect(ctx.alone).toBe(false);
     expect(ctx.others).toHaveLength(1);
-    expect(ctx.others[0].seat).toBe(seatName(other));
+    // `startsWith`, not equality: this tab's own seat is minted at random, and
+    // when it happens to hash to the same name the pair is numbered apart
+    // ("Marram 2"). That numbering is the feature working, not a wrong name.
+    expect(ctx.others[0].seat.startsWith(seatName(other))).toBe(true);
     expect(ctx.others[0].actor).toBe(other);
   });
 

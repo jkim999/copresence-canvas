@@ -1,9 +1,12 @@
 import { useSceneStore } from '../state/sceneStore';
-import { disambiguate, isAgent, kindOf, me, myAgent, seatName } from '../state/actors';
+import { isAgent, kindOf, myAgent } from '../state/actors';
+import { journalCursor } from '../state/journal';
 import { LAYOUT_KINDS, type ActorId, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
 import { boardContext } from './boardContext';
-import { roomView } from '../sync/peers';
+import { changesSince } from './changes';
+import { crediting } from './credit';
+import { announce } from './intent';
 import {
   addNotes,
   annotateScene,
@@ -36,38 +39,14 @@ const asLayout = (value: unknown): LayoutKind => {
  * the token story real and the agent reliable: it reads ~30 notes as a few
  * hundred tokens of text it can reason about by id.
  */
-/**
- * Who to credit for a piece of work, by seat.
- *
- * `lastEditedBy` alone answers "person or machine", which is the only question
- * a single-agent board ever asked. On a shared board it is not enough: two
- * agents organising one canvas both reported that every node came back marked
- * `agent`, so neither could tell its own work from the other's — one resorted
- * to diffing whole scene snapshots by hand.
- *
- * A tab's human and its agent are one seat. Reporting the person's work as some
- * other participant's would have the agent deferring to its own human.
- */
-const credit = () => {
-  const { scene } = useSceneStore.getState();
-  const mine = new Set([me(), myAgent()]);
-
-  const everyone = new Set<ActorId>([...mine, ...roomView().peers.map((p) => p.actor)]);
-  for (const n of scene.nodes) everyone.add(n.lastEditedBy);
-  for (const e of scene.edges) everyone.add(e.lastEditedBy);
-
-  const label = disambiguate([...everyone]);
-  return (by: ActorId) => ({
-    lastEditedBy: kindOf(by),
-    seat: label[by] ?? seatName(by),
-    mine: mine.has(by),
-  });
-};
-
 const readScene = () => {
   const { scene } = useSceneStore.getState();
   const bounds = boundsOf(scene.nodes);
-  const who = credit();
+  const who = crediting();
+  const credit = (by: ActorId) => {
+    const c = who(by);
+    return { lastEditedBy: c.kind, seat: c.seat, mine: c.mine };
+  };
   return {
     nodes: scene.nodes.map((n) => ({
       id: n.id,
@@ -78,14 +57,14 @@ const readScene = () => {
       h: n.h,
       kind: n.kind,
       cluster: n.cluster,
-      ...who(n.lastEditedBy),
+      ...credit(n.lastEditedBy),
     })),
     edges: scene.edges.map((e) => ({
       id: e.id,
       from: e.from,
       to: e.to,
       label: e.label,
-      ...who(e.lastEditedBy),
+      ...credit(e.lastEditedBy),
     })),
     regions: scene.regions.map((r) => ({
       id: r.id,
@@ -99,6 +78,10 @@ const readScene = () => {
       nodeId: a.nodeId,
     })),
     bounds: { x: round(bounds.x), y: round(bounds.y), w: round(bounds.w), h: round(bounds.h) },
+    // A bookmark for this exact reading. Hand it to what_changed later and you
+    // are told precisely what happened in between, instead of having to keep
+    // this whole payload around and diff it yourself.
+    asOf: journalCursor(),
     counts: {
       nodes: scene.nodes.length,
       edges: scene.edges.length,
@@ -107,7 +90,8 @@ const readScene = () => {
     },
     note:
       'Coordinates are canvas units, y grows downward. Never send pixel positions back — ' +
-      'address notes by id and state the layout you want; the page computes the geometry.',
+      'address notes by id and state the layout you want; the page computes the geometry. ' +
+      'Keep `asOf` and pass it to what_changed rather than re-reading and diffing this.',
   };
 };
 
@@ -125,6 +109,32 @@ export const buildTools = (): ToolDefinition[] => [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, title: 'Read the canvas' },
     execute: async () => readScene(),
+  },
+
+  {
+    name: 'what_changed',
+    description:
+      'Find out what happened on this board while you were not looking. Pass the `asOf` or ' +
+      '`cursor` you were given last time as `since`, and you get back every change made in ' +
+      'between — who made it, what it was, and which notes it touched — instead of having to ' +
+      'keep an old get_scene and diff it by hand. Anything marked `mine: false` was another ' +
+      'participant or their agent: it is their work, not a stale copy of yours, so read it ' +
+      'before you rearrange or undo it. Call this after any pause, and after any call that ' +
+      'took longer than you expected. Calling it with no `since` gives you a starting cursor ' +
+      'rather than the whole session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        since: {
+          type: 'number',
+          description: 'The cursor from a previous what_changed, or `asOf` from get_scene.',
+        },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, title: 'What changed since I last looked' },
+    execute: async (args) =>
+      changesSince(typeof args?.since === 'number' ? args.since : undefined),
   },
 
   {
@@ -245,7 +255,18 @@ export const buildTools = (): ToolDefinition[] => [
       const layout = asLayout(args?.layout);
       const label = typeof args?.label === 'string' ? args.label : undefined;
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
-      const result = await withAgentBody(() => arrangeRegion(nodeIds, layout, label));
+      const result = await withAgentBody(() =>
+        announce(
+          {
+            verb: 'arranging',
+            what: `${nodeIds.length} note${nodeIds.length === 1 ? '' : 's'}${
+              label ? ` as "${label}"` : ''
+            } into a ${layout.replace(/_/g, ' ')}`,
+            ids: nodeIds,
+          },
+          () => arrangeRegion(nodeIds, layout, label),
+        ),
+      );
       return {
         moved: result.moved,
         layout: result.layout,
@@ -305,13 +326,26 @@ export const buildTools = (): ToolDefinition[] => [
       if (!Array.isArray(args?.links) || args.links.length === 0) {
         throw new Error('links must be a non-empty array');
       }
-      const links = args.links.map((l: any) => ({
+      const links: { from: string; to: string; label: string }[] = args.links.map((l: any) => ({
         from: String(l?.from ?? ''),
         to: String(l?.to ?? ''),
         label: String(l?.label ?? ''),
       }));
-      const result = await withAgentBody(() => findAndLink(criterion, links));
-      return { created: result.created, skipped: result.skipped.length, criterion };
+      const result = await withAgentBody(() =>
+        announce(
+          {
+            verb: 'linking',
+            what: `${links.length} pair${links.length === 1 ? '' : 's'} by "${criterion}"`,
+            ids: [...new Set(links.flatMap((l) => [l.from, l.to]))],
+          },
+          () => findAndLink(criterion, links),
+        ),
+      );
+      // Each skip carries its own reason. A bare count told an agent only that
+      // something was wrong, and "the ids do not exist", "those two are already
+      // connected" and "you linked a note to itself" need three different
+      // corrections — so guessing, or retrying unchanged, was the only move left.
+      return { created: result.created, skipped: result.skipped, criterion };
     },
   },
 
@@ -335,7 +369,12 @@ export const buildTools = (): ToolDefinition[] => [
       const text = String(args?.text ?? '').trim();
       if (!text) throw new Error('text is required');
       const nodeId = typeof args?.nodeId === 'string' ? args.nodeId : undefined;
-      return withAgentBody(() => annotateScene(text, nodeId));
+      return withAgentBody(() =>
+        announce(
+          { verb: 'writing', what: 'a comment on the board', ids: nodeId ? [nodeId] : [] },
+          () => annotateScene(text, nodeId),
+        ),
+      );
     },
   },
 
@@ -364,7 +403,16 @@ export const buildTools = (): ToolDefinition[] => [
       const summary = String(args?.summary ?? '').trim();
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
       if (!summary) throw new Error('summary is required');
-      return withAgentBody(() => summarizeCluster(nodeIds, summary));
+      return withAgentBody(() =>
+        announce(
+          {
+            verb: 'collapsing',
+            what: `${nodeIds.length} notes into "${summary}"`,
+            ids: nodeIds,
+          },
+          () => summarizeCluster(nodeIds, summary),
+        ),
+      );
     },
   },
 
@@ -396,7 +444,16 @@ export const buildTools = (): ToolDefinition[] => [
       if (texts.length === 0) throw new Error('texts must not be empty');
       if (texts.length > 12) throw new Error('add at most 12 notes at a time');
       const near = typeof args?.near === 'string' ? args.near : undefined;
-      return withAgentBody(() => addNotes(texts, near));
+      return withAgentBody(() =>
+        announce(
+          {
+            verb: 'adding',
+            what: `${texts.length} note${texts.length === 1 ? '' : 's'}`,
+            ids: near ? [near] : [],
+          },
+          () => addNotes(texts, near),
+        ),
+      );
     },
   },
 
@@ -439,12 +496,25 @@ export const buildTools = (): ToolDefinition[] => [
       if (!Array.isArray(args?.groups) || args.groups.length === 0) {
         throw new Error('groups must be a non-empty array');
       }
-      const groups = args.groups.map((g: any) => ({
-        label: String(g?.label ?? 'Group'),
-        nodeIds: asStringArray(g?.nodeIds, 'groups[].nodeIds'),
-        layout: g?.layout ? asLayout(g.layout) : undefined,
-      }));
-      const result = await withAgentBody(() => reorganizeBoard(groups, rationale));
+      const groups: { label: string; nodeIds: string[]; layout?: LayoutKind }[] =
+        args.groups.map((g: any) => ({
+          label: String(g?.label ?? 'Group'),
+          nodeIds: asStringArray(g?.nodeIds, 'groups[].nodeIds'),
+          layout: g?.layout ? asLayout(g.layout) : undefined,
+        }));
+      const total = groups.reduce((sum, g) => sum + g.nodeIds.length, 0);
+      const result = await withAgentBody(() =>
+        announce(
+          {
+            verb: 'proposing',
+            what:
+              `a reorganisation of ${total} notes into ${groups.length} ` +
+              `group${groups.length === 1 ? '' : 's'}`,
+            ids: groups.flatMap((g) => g.nodeIds),
+          },
+          () => reorganizeBoard(groups, rationale),
+        ),
+      );
       if (result.approved) return result;
       return {
         ...result,
