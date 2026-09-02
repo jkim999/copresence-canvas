@@ -32,7 +32,7 @@ both moving different notes. Let it play silently. That image is the pitch.
 > inside my browser — note positions that no backend has ever seen and no API could
 > reach. And it isn't taking turns with me. I never stopped working."
 
-Show the **Tools** tab briefly: eight tools, live JSON Schemas, registered through
+Show the **Tools** tab briefly: ten tools, live JSON Schemas, registered through
 `document.modelContext.registerTool`.
 
 ### 0:40 – 2:00 — one strong task, start to finish.

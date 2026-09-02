@@ -85,8 +85,18 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       parts.push(`+${count(r.created)} notes`);
       break;
     case 'reorganize_board':
+      // `refusedBy` is already the rendered seat — 'You' when this tab refused,
+      // a peer's seat name when theirs did, and null when the ask simply ran
+      // out of time. Collapsing all three into "you declined" told the reader
+      // their own human had refused something they were never asked.
       parts.push(
-        r.approved ? `approved · ${count(r.groupsApplied)} groups` : 'you declined',
+        r.approved
+          ? `approved · ${count(r.groupsApplied)} groups`
+          : typeof r.refusedBy === 'string' && r.refusedBy.length > 0
+            ? r.refusedBy === 'You'
+              ? 'you declined'
+              : `${r.refusedBy} declined`
+            : 'nobody answered',
       );
       if (r.approved) parts.push(`moved ${count(r.moved)}`);
       break;

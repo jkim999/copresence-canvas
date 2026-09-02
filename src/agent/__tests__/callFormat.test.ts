@@ -48,7 +48,12 @@ describe('summarizeResult', () => {
   });
 
   it('reports a declined gate as the human declining, not as failure', () => {
-    expect(summarizeResult('reorganize_board', { approved: false })).toBe('you declined');
+    // `refusedBy` is always populated for a real local refusal; the bare
+    // `{ approved: false }` this once asserted on stopped being a shape the
+    // action can produce once a board could hold more than one person.
+    expect(summarizeResult('reorganize_board', { approved: false, refusedBy: 'You' })).toBe(
+      'you declined',
+    );
   });
 
   it('says what the agent noticed the human doing', () => {
@@ -80,5 +85,57 @@ describe('a summary that could not absorb everything', () => {
     expect(summarizeResult('summarize_cluster', { collapsed: 5, keptInHand: [] })).toBe(
       '5 notes → 1 summary',
     );
+  });
+});
+
+/**
+ * Two agents driving one board found this: a whole-board change that a *peer*
+ * vetoed, and one that simply timed out with nobody answering, both rendered as
+ * "you declined". The asker's own tab therefore accused its own human of a
+ * refusal they never made. A ledger exists to be checked against reality, so a
+ * plausible-sounding wrong attribution is worse here than no attribution.
+ */
+describe('summarizeResult names who actually refused', () => {
+  it('names the peer who vetoed, rather than blaming the reader', () => {
+    const line = summarizeResult('reorganize_board', {
+      approved: false,
+      groupsApplied: 0,
+      moved: 0,
+      refusedBy: 'Ochre',
+    });
+    expect(line).toContain('Ochre');
+    expect(line).not.toContain('you declined');
+  });
+
+  it('says nobody answered when the ask timed out', () => {
+    const line = summarizeResult('reorganize_board', {
+      approved: false,
+      groupsApplied: 0,
+      moved: 0,
+      refusedBy: null,
+    });
+    expect(line).toMatch(/no.?(one|body) answered/i);
+    expect(line).not.toContain('you declined');
+  });
+
+  it('still says you declined when you are the one who declined', () => {
+    const line = summarizeResult('reorganize_board', {
+      approved: false,
+      groupsApplied: 0,
+      moved: 0,
+      refusedBy: 'You',
+    });
+    expect(line).toBe('you declined');
+  });
+
+  it('reports an approval with what it moved', () => {
+    const line = summarizeResult('reorganize_board', {
+      approved: true,
+      groupsApplied: 3,
+      moved: 12,
+      refusedBy: null,
+    });
+    expect(line).toContain('approved');
+    expect(line).toContain('12');
   });
 });
