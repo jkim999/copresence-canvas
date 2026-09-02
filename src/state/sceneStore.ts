@@ -13,6 +13,7 @@ import type {
 import { seedScene } from '../data/seed';
 import { sceneFromTexts } from '../data/importBoard';
 import { LOCAL_HUMAN, isAgent } from './actors';
+import { currentIntent } from '../agent/intent';
 
 let counter = 0;
 /**
@@ -58,11 +59,30 @@ interface SceneState {
   showProvenance: boolean;
   /** bumped whenever the whole board is replaced, so the canvas can refit. */
   epoch: number;
+  /**
+   * Bumped whenever a rewind restores a snapshot.
+   *
+   * The journal derives what happened by diffing the scene, which is what makes
+   * it impossible to forget an entry — and what makes a rewind lie. Restored
+   * notes carry whoever last edited them, so the diff reads as those people
+   * having just moved their work back, timestamped now. A live rewind produced
+   * four such lines naming three colleagues who had done nothing.
+   *
+   * Separate from `epoch` because a rewind is not a new board: it must not
+   * refit the viewport out from under someone who was looking at a corner of it.
+   */
+  rewound: number;
 
   // --- snapshots / undo -------------------------------------------------
-  snapshot: (label: string, by: ActorId) => void;
+  snapshot: (label: string, by: ActorId, act?: number) => void;
   undoLast: () => HistoryEntry | null;
   undoLastAgentAction: () => HistoryEntry | null;
+  /**
+   * Restore the board as it stood before a particular announced act, and drop
+   * every snapshot from that one on. Returns what it went back to, or null when
+   * no snapshot belongs to that act.
+   */
+  revertToAct: (act: number) => HistoryEntry | null;
 
   // --- reads ------------------------------------------------------------
   getNode: (id: string) => SceneNode | undefined;
@@ -117,17 +137,31 @@ const cloneScene = (s: Scene): Scene => ({
 export const useSceneStore = create<SceneState>((set, get) => ({
   scene: seedScene(),
   history: [],
+  rewound: 0,
   log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas ready.' }],
   grip: {},
   claims: {},
   showProvenance: true,
   epoch: 0,
 
-  snapshot: (label, by) =>
+  snapshot: (label, by, act) =>
     set((s) => ({
       history: [
         ...s.history.slice(-(HISTORY_LIMIT - 1)),
-        { id: uid('h'), label, by, at: Date.now(), scene: cloneScene(s.scene) },
+        {
+          id: uid('h'),
+          label,
+          by,
+          at: Date.now(),
+          scene: cloneScene(s.scene),
+          // Stamped from the running announcement when the caller does not name
+          // one, exactly as the journal stamps its facts — so a snapshot and
+          // the lines describing the same act carry the same id without every
+          // call site having to remember to pass it.
+          ...(act ?? currentIntent()?.at) !== undefined
+            ? { act: act ?? currentIntent()?.at }
+            : {},
+        },
       ],
     })),
 
@@ -151,6 +185,33 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       }
     }
     return null;
+  },
+
+  revertToAct: (act) => {
+    const { history } = get();
+    // The last snapshot for the act, not the first: an act that snapshotted
+    // more than once should return to the nearest board it can vouch for.
+    let found = -1;
+    for (let i = history.length - 1; i >= 0; i -= 1) {
+      if (history[i].act === act) {
+        found = i;
+        break;
+      }
+    }
+    if (found < 0) return null;
+    const entry = history[found];
+    // Everything after it describes a board that will not exist in a moment.
+    // Keeping those would offer a way back to a state nothing ever passed
+    // through.
+    set({
+      scene: cloneScene(entry.scene),
+      history: history.slice(0, found),
+      rewound: get().rewound + 1,
+    });
+    // The notice below is the record of this. One line saying the board was
+    // rewound is the truth; seven lines naming bystanders is not.
+    get().pushLog('system', `Rewound to before: ${entry.label}`);
+    return entry;
   },
 
   getNode: (id) => get().scene.nodes.find((n) => n.id === id),

@@ -145,3 +145,55 @@ describe('resetting the board', () => {
     expect(useSceneStore.getState().grip).toEqual({});
   });
 });
+
+/**
+ * Rewinding from the history panel, rather than from a toolbar button that can
+ * only ever mean "the last thing".
+ *
+ * The row a person is reading is the moment they form the thought "no, not
+ * that" — and it was the one place they could not act on it. What the row can
+ * offer is honest about the mechanism: snapshots are whole scenes, so going
+ * back to one goes back past everything after it too.
+ */
+describe('rewinding to a particular act', () => {
+  beforeEach(reset);
+
+  it('puts the board back the way it was before that act', () => {
+    const store = useSceneStore.getState();
+    const before = store.scene.nodes.length;
+    store.snapshot('agent arranges', 'agent', 500);
+    store.addNode({ text: 'from agent', x: 0, y: 0 }, 'agent');
+
+    const entry = useSceneStore.getState().revertToAct(500);
+    expect(entry?.label).toBe('agent arranges');
+    expect(useSceneStore.getState().scene.nodes.length).toBe(before);
+  });
+
+  it('goes back past everything stacked on top of it, which is the honest part', () => {
+    const store = useSceneStore.getState();
+    const before = store.scene.nodes.length;
+    store.snapshot('agent arranges', 'agent', 500);
+    store.addNode({ text: 'from agent', x: 0, y: 0 }, 'agent');
+    store.snapshot('agent links', 'agent', 600);
+    store.addNode({ text: 'later still', x: 0, y: 0 }, 'agent');
+
+    useSceneStore.getState().revertToAct(500);
+    expect(useSceneStore.getState().scene.nodes.length).toBe(before);
+    // And the snapshots it passed are gone with it: they describe a board that
+    // no longer exists, and offering to return to one would be a trapdoor.
+    expect(useSceneStore.getState().history).toHaveLength(0);
+  });
+
+  it('finds the act rather than the last snapshot that happens to match', () => {
+    const store = useSceneStore.getState();
+    store.snapshot('first', 'agent', 500);
+    store.snapshot('second', 'agent', 600);
+    expect(useSceneStore.getState().revertToAct(600)?.label).toBe('second');
+  });
+
+  it('does nothing for an act it has no snapshot of', () => {
+    useSceneStore.getState().snapshot('only one', 'agent', 500);
+    expect(useSceneStore.getState().revertToAct(999)).toBeNull();
+    expect(useSceneStore.getState().history).toHaveLength(1);
+  });
+});

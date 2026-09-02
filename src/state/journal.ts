@@ -283,7 +283,12 @@ const unquoted = (detail: string): string => {
  */
 const nested = (text: string): string => text.replace(/"([^"]*)"/g, '\u2018$1\u2019');
 
-const quote = (detail: string, max = 44): string => {
+/**
+ * Shared with anything else that has to set a fragment of board text inside a
+ * sentence — the rewind dialog names the act it is about to undo, and got the
+ * doubled marks wrong in exactly the same way this was written to fix.
+ */
+export const quote = (detail: string, max = 44): string => {
   const text = nested(unquoted(detail));
   return `${OPEN}${text.length > max ? `${text.slice(0, max - 1)}…` : text}${CLOSE}`;
 };
@@ -322,6 +327,49 @@ const VERB: Record<JournalVerb, [string, string, string]> = {
  * "you" differs between the panel and a tool result, and because a seat name is
  * only meaningful against the room as it stands right now.
  */
+/**
+ * What a rewind to a given act would take with it.
+ *
+ * Undo restores a whole-scene snapshot, so rewinding to an act discards
+ * everything recorded after it as well — and a colleague's work, which arrived
+ * over the wire and was never snapshotted here, goes with it silently. The
+ * journal is the only record that knows those changes happened at all, so it is
+ * the thing that has to be asked before a control offers the rewind.
+ *
+ * Pure and given the two local actors rather than reading them, so the rule
+ * "your own later work is yours to discard, a colleague's is not" can be tested
+ * without a room.
+ */
+export interface RevertScope {
+  /** Changes recorded after that act, all of which a rewind would discard. */
+  laterChanges: number;
+  /** Seats other than your own with work among them, in the order they appear. */
+  othersAffected: ActorId[];
+}
+
+export const revertScope = (
+  events: readonly JournalEvent[],
+  act: number,
+  human: ActorId,
+  agent: ActorId,
+): RevertScope => {
+  let last = -1;
+  for (let i = 0; i < events.length; i += 1) if (events[i].act === act) last = i;
+  // An act with nothing of its own left in the record has already been trimmed
+  // past; treating that as "nothing follows" is the safe reading, because the
+  // caller only offers a rewind for an act it can still see.
+  const later = last < 0 ? [] : events.slice(last + 1);
+
+  const others: ActorId[] = [];
+  for (const e of later) {
+    // A removal is recorded with no author: the scene remembers who last edited
+    // a note, never who deleted one. It cannot be attributed to a colleague.
+    if (e.by === null || e.by === human || e.by === agent) continue;
+    if (!others.includes(e.by)) others.push(e.by);
+  }
+  return { laterChanges: later.length, othersAffected: others };
+};
+
 export const describeEvent = (event: JournalEvent, name: string | null): string => {
   const n = event.ids.length;
   const [one, many] = NOUN[event.verb];
@@ -378,6 +426,9 @@ export const watchScene = (): (() => void) =>
       ]);
       return;
     }
+    // A rewind is a restoration, not a set of edits by the people whose names
+    // happen to be on the restored notes. It records itself as a notice.
+    if (state.rewound !== prev.rewound) return;
     if (state.scene === prev.scene) return;
     recordFacts(stamped(diffScene(prev.scene, state.scene, Date.now())));
   });

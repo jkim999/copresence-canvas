@@ -93,6 +93,15 @@ export interface HistoryEntry {
   by: ActorId;
   at: number;
   scene: Scene;
+  /**
+   * The announcement this snapshot was taken for, when it was taken for one.
+   *
+   * The same id the journal stamps on its facts, which is what lets a line in
+   * the history panel find the board as it stood before the act that line
+   * describes. Matching on time instead would be a guess, and a guess here
+   * restores the wrong board.
+   */
+  act?: number;
 }
 
 /**
