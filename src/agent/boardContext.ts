@@ -1,5 +1,5 @@
 import { usePeerStore } from '../sync/peers';
-import { me, myAgent, seatName } from '../state/actors';
+import { disambiguate, me, myAgent, seatName } from '../state/actors';
 import { PRESENCE_TTL_MS } from '../sync/presence';
 import type { ActorId } from '../state/types';
 
@@ -89,9 +89,13 @@ export const boardContext = (): BoardContext => {
   // wrong about who is in the room.
   const trustworthy = confirmedAgo * 1000 <= PRESENCE_TTL_MS;
 
+  // Distinct within this room. A seat name is the whole content of a refusal,
+  // so two participants under one name would make it unreadable.
+  const label = disambiguate([me(), ...peers.map((p) => p.actor)]);
+
   const others = peers.map(
     (p): Participant => ({
-      seat: seatName(p.actor),
+      seat: label[p.actor] ?? seatName(p.actor),
       actor: p.actor,
       holding: [...p.holding],
       hasAgent: p.agent !== null,
@@ -108,7 +112,7 @@ export const boardContext = (): BoardContext => {
       'timers throttled. Re-read this before relying on it.';
 
   return {
-    you: { seat: seatName(me()), actor: me(), agent: myAgent() },
+    you: { seat: label[me()] ?? seatName(me()), actor: me(), agent: myAgent() },
     others,
     alone,
     consent: alone

@@ -72,7 +72,12 @@ const SEATS: Record<ActorKind, string[]> = {
  * actor id instead: no coordination, no server handing out labels, and the same
  * peer reads as the same name on every screen.
  */
-const SEAT_NAMES = ['Cedar', 'Amber', 'Slate', 'Clover', 'Ochre', 'Juniper', 'Flint', 'Sorrel'];
+export const SEAT_NAMES = [
+  'Cedar', 'Amber', 'Slate', 'Clover', 'Ochre', 'Juniper', 'Flint', 'Sorrel',
+  'Bramble', 'Cinder', 'Damson', 'Fennel', 'Ginger', 'Hazel', 'Indigo', 'Larch',
+  'Marram', 'Nettle', 'Olive', 'Pewter', 'Quince', 'Rowan', 'Saffron', 'Teasel',
+  'Umber', 'Verdigris', 'Willow', 'Yarrow',
+];
 
 const hash = (text: string): number => {
   let h = 0;
@@ -81,6 +86,42 @@ const hash = (text: string): number => {
 };
 
 export const seatName = (id: ActorId): string => SEAT_NAMES[hash(id) % SEAT_NAMES.length];
+
+/**
+ * Seat names for a set of participants, guaranteed distinct within that set.
+ *
+ * The name is a hash of the actor id so that it needs no coordination and reads
+ * the same on every screen — which means it can collide, and with eight names
+ * it collided during an ordinary two-tab test. That is not a cosmetic problem:
+ * a seat name badges a peer's tool calls and is the entire content of a refusal
+ * ("Ochre declined"), so two people under one name makes both of those wrong.
+ *
+ * A wider list makes it rare; this makes it impossible where it is read. Only a
+ * contested name is modified, and the tie-break is drawn from the actor id and
+ * applied in sorted order, so every tab that can see the same people labels
+ * them identically.
+ */
+export const disambiguate = (actors: readonly ActorId[]): Record<ActorId, string> => {
+  const byName = new Map<string, ActorId[]>();
+  for (const id of [...actors].sort()) {
+    const name = seatName(id);
+    const bucket = byName.get(name);
+    if (bucket) bucket.push(id);
+    else byName.set(name, [id]);
+  }
+
+  const out: Record<ActorId, string> = {};
+  for (const [name, ids] of byName) {
+    if (ids.length === 1) {
+      out[ids[0]] = name;
+      continue;
+    }
+    ids.forEach((id, i) => {
+      out[id] = `${name} ${i + 1}`;
+    });
+  }
+  return out;
+};
 
 interface ActorState {
   actors: Record<ActorId, Actor>;
