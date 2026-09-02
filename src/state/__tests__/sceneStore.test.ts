@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSceneStore } from '../sceneStore';
 import { LOCAL_HUMAN } from '../actors';
 
@@ -109,5 +109,39 @@ describe('scene integrity', () => {
     const scene = useSceneStore.getState().scene;
     expect(scene.regions.find((r) => r.id === 'r1')!.nodeIds).toEqual([a.id]);
     expect(useSceneStore.getState().getNode(b.id)!.cluster).toBe('r2');
+  });
+});
+
+describe('minting a node id', () => {
+  it('does not collide with a second tab that started in the same millisecond', async () => {
+    // Same failure the actor ids already guard against, in the one place it is
+    // worse: two tabs adding a note at the same moment mint the same node id,
+    // and the CRDT merges two different notes into one with mixed fields.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      vi.resetModules();
+      const tabA = await import('../sceneStore');
+      vi.resetModules();
+      const tabB = await import('../sceneStore');
+
+      expect(tabA.uid('n')).not.toBe(tabB.uid('n'));
+    } finally {
+      vi.useRealTimers();
+      vi.resetModules();
+    }
+  });
+});
+
+describe('resetting the board', () => {
+  it('lets go of everything the old board was holding', () => {
+    // A grip is a claim on a note id. Wiping the board without wiping the grip
+    // leaves holds on notes that no longer exist, and publishes them.
+    const held = first();
+    useSceneStore.getState().setGrip([held.id], LOCAL_HUMAN);
+
+    useSceneStore.getState().resetScene();
+
+    expect(useSceneStore.getState().grip).toEqual({});
   });
 });

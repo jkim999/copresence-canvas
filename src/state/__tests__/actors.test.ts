@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCAL_AGENT, LOCAL_HUMAN, agentId, humanId, isAgent, kindOf, me, myAgent, nameOf, seatName, takeSeat, useActorStore } from '../actors';
 
 const reset = () => useActorStore.getState().reset();
@@ -127,12 +127,28 @@ describe('taking a seat', () => {
 });
 
 describe('minting an id', () => {
-  it('does not collide when two tabs start in the same millisecond', () => {
-    // A clock and a counter are both per-tab, so without a random tail two tabs
-    // opened together mint the same id — and then neither can refuse the other
-    // a note, because the grip only blocks a hand that is not yours.
-    const minted = new Set(Array.from({ length: 500 }, () => humanId()));
+  it('does not repeat itself within one tab', () => {
+    expect(new Set(Array.from({ length: 500 }, () => humanId())).size).toBe(500);
+  });
 
-    expect(minted.size).toBe(500);
+  it('does not collide with a second tab that started in the same millisecond', async () => {
+    // The one that matters, and the one a single-process loop cannot reach: a
+    // clock and a counter are both per-*tab*, so two tabs opened together mint
+    // byte-identical ids — and then neither can refuse the other a note,
+    // because the grip only blocks a hand that is not yours. A fresh module
+    // registry is a fresh tab.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      vi.resetModules();
+      const tabA = await import('../actors');
+      vi.resetModules();
+      const tabB = await import('../actors');
+
+      expect(tabA.humanId()).not.toBe(tabB.humanId());
+    } finally {
+      vi.useRealTimers();
+      vi.resetModules();
+    }
   });
 });

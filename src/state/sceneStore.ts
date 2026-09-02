@@ -15,9 +15,15 @@ import { sceneFromTexts } from '../data/importBoard';
 import { LOCAL_HUMAN, isAgent } from './actors';
 
 let counter = 0;
+/**
+ * The random tail is load-bearing, exactly as it is for actor ids: a clock and
+ * a counter are both per-tab, so two tabs adding a note in the same millisecond
+ * mint the same id — and the CRDT then merges two different notes into one.
+ */
 export const uid = (prefix: string): string => {
   counter += 1;
-  return `${prefix}_${Date.now().toString(36)}${counter.toString(36)}`;
+  const noise = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${Date.now().toString(36)}${counter.toString(36)}${noise}`;
 };
 
 const HISTORY_LIMIT = 40;
@@ -42,6 +48,13 @@ interface SceneState {
    * holder, not just the note, once there can be more than one pair of hands.
    */
   grip: Record<string, ActorId>;
+  /**
+   * What each local actor's hands are on, as *asked for* rather than as
+   * resolved. `grip` is the answer everyone agrees on; this is the question
+   * this tab keeps asking. Losing a simultaneous grab must not retract the
+   * claim, or the loser never contends again when the winner lets go.
+   */
+  claims: Record<ActorId, string[]>;
   showProvenance: boolean;
   /** bumped whenever the whole board is replaced, so the canvas can refit. */
   epoch: number;
@@ -106,6 +119,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   history: [],
   log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas ready.' }],
   grip: {},
+  claims: {},
   showProvenance: true,
   epoch: 0,
 
@@ -323,10 +337,10 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       for (const nodeId of nodeIds) {
         if (next[nodeId] === undefined) next[nodeId] = by;
       }
-      return { grip: next };
+      return { grip: next, claims: { ...s.claims, [by]: [...nodeIds] } };
     }),
 
-  clearGrip: () => set({ grip: {} }),
+  clearGrip: () => set({ grip: {}, claims: {} }),
 
   heldBy: (nodeId) => get().grip[nodeId] ?? null,
 
@@ -341,6 +355,10 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set((s) => ({
       scene: seedScene(),
       history: [],
+      // A grip is a claim on a note id, so a board that no longer has those
+      // notes must not go on publishing holds over them.
+      grip: {},
+      claims: {},
       epoch: s.epoch + 1,
       log: [{ id: uid('log'), at: Date.now(), by: 'system', text: 'Canvas reset.' }],
     })),
@@ -350,6 +368,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       scene: sceneFromTexts(texts),
       history: [],
       grip: {},
+      claims: {},
       epoch: s.epoch + 1,
       log: [
         {
@@ -368,6 +387,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       scene: cloneScene(scene),
       history: [],
       grip: {},
+      claims: {},
       epoch: s.epoch + 1,
       log: [
         {

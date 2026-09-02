@@ -5,9 +5,9 @@ import { connectBoard, reportCursor, type Connection } from '../bind';
 import { openSession, type Session } from '../channel';
 import { readScene, writeScene } from '../doc';
 import { holdsFrom, peersOf, publish } from '../presence';
-import { usePeerCursorStore } from '../peers';
+import { usePeerCursorStore, usePeerStore } from '../peers';
 import { useSceneStore } from '../../state/sceneStore';
-import { LOCAL_HUMAN, humanId, me, seatName } from '../../state/actors';
+import { LOCAL_HUMAN, humanId, me, myAgent, seatName } from '../../state/actors';
 import type { Scene, SceneNode } from '../../state/types';
 
 /**
@@ -28,8 +28,11 @@ const connections: Connection[] = [];
 const peers: { doc: Y.Doc; awareness: Awareness; session: Session }[] = [];
 
 /** The other browser: a doc on the wire with no store behind it. */
-const otherTab = (room: string) => {
+const otherTab = (room: string, clientId?: number) => {
   const doc = new Y.Doc();
+  // Seat age is the seeding election, so a test that cares about it has to be
+  // able to say which tab is older.
+  if (clientId !== undefined) doc.clientID = clientId;
   const awareness = new Awareness(doc);
   const session = openSession(room, doc, awareness);
   const peer = { doc, awareness, session };
@@ -243,5 +246,104 @@ describe('pointers, across the wire', () => {
     // Pointer events can outlive teardown by a frame; reporting into a closed
     // connection must not throw its way up through a DOM handler.
     expect(() => reportCursor({ x: 1, y: 2 })).not.toThrow();
+  });
+});
+
+describe('a note two tabs grab at the same instant', () => {
+  /** An actor id low enough to win every tie-break. */
+  const EARLY = 'h_000000';
+
+  it('goes to one of them and stays claimed by the other', async () => {
+    const room = newRoom();
+    const other = otherTab(room);
+    const c = connect(room);
+    await settle();
+
+    const target = store().scene.nodes[0];
+    publish(other.awareness, { actor: EARLY, name: 'Bo', holding: [target.id] });
+    store().setGrip([target.id], me());
+    await settle();
+
+    // Lost the tie — but the hand is still down, so the claim must stand.
+    expect(store().heldBy(target.id)).toBe(EARLY);
+    expect(c.awareness.getLocalState()).toMatchObject({ holding: [target.id] });
+  });
+
+  it('comes to the loser when the winner lets go', async () => {
+    // The bug: the grip was published from the *resolved* map, so losing a tie
+    // retracted the claim too, and the loser never contended again — their
+    // finger still down, the note free, and nobody holding it.
+    const room = newRoom();
+    const other = otherTab(room);
+    connect(room);
+    await settle();
+
+    const target = store().scene.nodes[0];
+    publish(other.awareness, { actor: EARLY, name: 'Bo', holding: [target.id] });
+    store().setGrip([target.id], me());
+    await settle();
+
+    publish(other.awareness, { actor: EARLY, name: 'Bo', holding: [] });
+    await settle();
+
+    expect(store().heldBy(target.id)).toBe(me());
+  });
+});
+
+describe('a peer wearing this tab\'s name', () => {
+  it('is not believed', async () => {
+    // Presence validates shape but not identity, and a state claiming to be
+    // this tab would be folded into what *this* tab republishes as its own.
+    const room = newRoom();
+    const other = otherTab(room);
+    connect(room);
+    await settle();
+
+    publish(other.awareness, { actor: me(), name: 'Impostor', holding: ['n_0'] });
+    publish(other.awareness, { actor: myAgent(), name: 'Impostor', holding: ['n_1'] });
+    await settle();
+
+    expect(usePeerStore.getState().peers).toEqual([]);
+    expect(store().heldBy('n_0')).toBeNull();
+    expect(store().heldBy('n_1')).toBeNull();
+  });
+});
+
+describe('two tabs opening a room together', () => {
+  it('leaves the seeding to the older seat', async () => {
+    // Both tabs used to find an empty document at the end of the grace window
+    // and both used to seed it, so a board whose ids are not the fixed demo
+    // ones came back merged — every note twice.
+    const room = newRoom();
+    const other = otherTab(room, 1);
+    publish(other.awareness, { actor: BO, name: 'Bo' });
+    const c = connect(room);
+    await settle();
+
+    expect(readScene(c.doc).nodes).toHaveLength(0);
+  });
+
+  it('adopts the board once the older seat puts one there', async () => {
+    const room = newRoom();
+    const other = otherTab(room, 1);
+    publish(other.awareness, { actor: BO, name: 'Bo' });
+    connect(room);
+    await settle();
+
+    writeScene(other.doc, board([node('n_0'), node('n_1')]));
+    await settle();
+
+    expect(store().scene.nodes.map((n) => n.id)).toEqual(['n_0', 'n_1']);
+  });
+
+  it('seeds the room itself when it holds the oldest seat', async () => {
+    const room = newRoom();
+    const other = otherTab(room, 0xffffffff);
+    publish(other.awareness, { actor: BO, name: 'Bo' });
+    const mine = store().scene.nodes.map((n) => n.id);
+    const c = connect(room);
+    await settle();
+
+    expect(readScene(c.doc).nodes.map((n) => n.id)).toEqual(mine);
   });
 });

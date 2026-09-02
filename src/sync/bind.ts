@@ -4,7 +4,7 @@ import type { ActorId, Scene } from '../state/types';
 import { useSceneStore } from '../state/sceneStore';
 import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
-import { holdsFrom, peersOf, publish, type Cursor } from './presence';
+import { holdsOf, peersOf, publish, readPresence, type Cursor, type Presence } from './presence';
 import { setPeerCursors, setPeers } from './peers';
 import { openSession, roomFromLocation, type Session } from './channel';
 
@@ -92,6 +92,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
 
   /** True while a remote change is being written into the store. */
   let applying = false;
+  /** True once this tab has waited long enough to know whose room this is. */
+  let graced = false;
   /** The store does not push until this tab knows whose board this room is. */
   let live = false;
   let published: string[] = [];
@@ -108,20 +110,61 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     }
   };
 
+  /**
+   * Whether this tab holds the oldest seat in the room.
+   *
+   * Deciding "seed or adopt" on an empty document alone let two tabs opened
+   * together both seed, and a board whose ids are not the fixed demo ones came
+   * back merged — every note twice. Client ids are already unique and already
+   * known to everyone, so the oldest seat seeds and the rest wait.
+   */
+  const oldestSeat = (): boolean => {
+    for (const id of awareness.getStates().keys()) if (id < awareness.clientID) return false;
+    return true;
+  };
+
+  /**
+   * Settle whose board this room holds. Re-run whenever that could have
+   * changed — a board arriving, or the seat above this one leaving — rather
+   * than only once on a timer that cannot know either.
+   */
+  const considerAdoption = (): void => {
+    if (!graced || live) return;
+    if (collections(doc).nodes.size > 0) {
+      pullScene();
+      live = true;
+      return;
+    }
+    if (!oldestSeat()) return;
+    // Nobody was here and nobody older is waiting. This tab's board is the room's.
+    writeScene(doc, useSceneStore.getState().scene, ORIGIN_LOCAL);
+    live = true;
+  };
+
   const onDoc = (_update: Uint8Array, origin: unknown): void => {
     // Our own write is already in the store by definition.
     if (origin === ORIGIN_LOCAL) return;
     pullScene();
+    considerAdoption();
   };
   doc.on('update', onDoc);
 
   // --- awareness -> store ---------------------------------------------------
 
+  /**
+   * A peer declaring one of *this* tab's actor ids is not believed. Presence
+   * validates shape but not identity, and a state wearing this tab's name would
+   * otherwise be folded into what this tab republishes as its own hands.
+   */
+  const impostor = (p: Presence): boolean => p.actor === me() || p.actor === myAgent();
+
   const pullPresence = (): void => {
-    const others = peersOf(awareness);
+    const others = peersOf(awareness).filter((p) => !impostor(p));
     setPeers(others);
     setPeerCursors(others);
-    const next = holdsFrom(awareness);
+    const mine = readPresence(awareness.getLocalState());
+    const next = holdsOf(mine ? [mine, ...others] : others);
+    considerAdoption();
     if (sameGrip(useSceneStore.getState().grip, next)) return;
     useSceneStore.setState({ grip: next });
   };
@@ -131,13 +174,15 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
 
   // --- store -> doc and awareness -------------------------------------------
 
+  /**
+   * Published from what this tab's hands are *asking for*, never from the
+   * resolved map. Deriving it from the resolution meant losing a simultaneous
+   * grab also retracted the claim, so the loser never contended again — finger
+   * still down, note free, nobody holding it.
+   */
   const pushGrip = (): void => {
-    const { grip } = useSceneStore.getState();
-    const mine = new Set([me(), myAgent()]);
-    const holding = Object.entries(grip)
-      .filter(([, holder]) => mine.has(holder))
-      .map(([nodeId]) => nodeId)
-      .sort();
+    const { claims } = useSceneStore.getState();
+    const holding = [...new Set([...(claims[me()] ?? []), ...(claims[myAgent()] ?? [])])].sort();
     if (sameIds(holding, published)) return;
     published = holding;
     publish(awareness, { actor: me(), name: seatName(me()), holding });
@@ -146,7 +191,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   const unsubscribe = useSceneStore.subscribe((state, prev) => {
     if (applying) return;
     if (live && state.scene !== prev.scene) writeScene(doc, state.scene, ORIGIN_LOCAL);
-    if (state.grip !== prev.grip) pushGrip();
+    if (state.claims !== prev.claims) pushGrip();
   });
 
   // A tab that keeps the default `human` id cannot be told apart from any other
@@ -158,13 +203,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   broadcasting = awareness;
 
   const grace = setTimeout(() => {
-    if (collections(doc).nodes.size === 0) {
-      // Nobody was here. This tab's board becomes the room's board.
-      writeScene(doc, useSceneStore.getState().scene, ORIGIN_LOCAL);
-    } else {
-      pullScene();
-    }
-    live = true;
+    graced = true;
+    considerAdoption();
   }, options.graceMs ?? GRACE_MS);
 
   let stopped = false;

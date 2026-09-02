@@ -10,7 +10,15 @@ import { LOCAL_HUMAN } from '../state/actors';
  * leave, and a CRDT never forgets anything. Yjs awareness is the right home —
  * it is ephemeral by construction, and every peer drops a client that stops
  * heartbeating. That drop *is* the grip TTL, which is why there is no timer in
- * this file: a note held by a tab that closed mid-drag comes free on its own.
+ * this file.
+ *
+ * Two paths, and they are worth telling apart. A tab that closes normally says
+ * goodbye on the way out (see `channel.ts`), so its notes come free at once. A
+ * tab that is force-quit, crashed or discarded says nothing, and its notes stay
+ * held until awareness times the client out — up to 30 seconds, fixed in
+ * `y-protocols` as a module constant with no per-instance override. Half a
+ * minute is a long time to stare at a note you cannot move, and the honest fix
+ * is a heartbeat of our own rather than a comment implying it is instant.
  *
  * Everything arriving here is another tab, which may be running a different
  * build of this app or a broken one, so a peer state is validated exactly like
@@ -108,6 +116,10 @@ const claim = (states: Presence[], pick: (p: Presence) => string[]): Record<stri
 };
 
 /** Who is holding which note, across every peer on the board. */
+/** Resolve holds from an already-assembled list of states. */
+export const holdsOf = (states: Presence[]): Record<string, ActorId> =>
+  claim(states, (p) => p.holding);
+
 export const holdsFrom = (awareness: Awareness): Record<string, ActorId> =>
   claim(everyoneOn(awareness), (p) => p.holding);
 
