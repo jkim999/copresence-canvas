@@ -32,6 +32,7 @@ const AWARE = 'a';
 const HELLO = 'h';
 const ASK = 'k';
 const REPLY = 'r';
+const CALL = 'c';
 
 /** Capped hard: a peer's dialog text is rendered on *this* person's screen. */
 const MAX_TEXT = 400;
@@ -42,7 +43,30 @@ type Wire =
   | { t: typeof AWARE; u: Uint8Array }
   | { t: typeof HELLO }
   | { t: typeof ASK; id: string; from: ActorId; name: string; req: ConfirmRequest }
-  | { t: typeof REPLY; id: string; from: ActorId; ok: boolean };
+  | { t: typeof REPLY; id: string; from: ActorId; ok: boolean }
+  | {
+      t: typeof CALL;
+      id: string;
+      from: ActorId;
+      name: string;
+      at: number;
+      tool?: string;
+      sig?: string;
+      out?: string;
+      err?: string;
+    };
+
+export interface CallHandlers {
+  onCallStart: (c: {
+    id: string;
+    at: number;
+    tool: string;
+    sig: string;
+    actor: ActorId;
+    name: string;
+  }) => void;
+  onCallEnd: (id: string, out?: string, err?: string) => void;
+}
 
 export interface ConsentHandlers {
   onAsk: (id: string, req: ConfirmRequest, from: ActorId, name: string) => void;
@@ -53,6 +77,8 @@ export interface Session {
   room: string;
   ask: (id: string, from: ActorId, name: string, req: ConfirmRequest) => void;
   reply: (id: string, from: ActorId, ok: boolean) => void;
+  callStart: (c: { id: string; at: number; tool: string; sig: string }, from: ActorId, name: string) => void;
+  callEnd: (id: string, from: ActorId, out?: string, err?: string) => void;
   close: () => void;
 }
 
@@ -84,6 +110,22 @@ const readWire = (data: unknown): Wire | null => {
   if (!data || typeof data !== 'object') return null;
   const { t, u } = data as Record<string, unknown>;
   if (t === HELLO) return { t: HELLO };
+  if (t === CALL) {
+    const { id, from, name, at, tool, sig, out, err } = data as Record<string, unknown>;
+    if (typeof id !== 'string' || id.length === 0 || id.length > 64) return null;
+    if (typeof from !== 'string' || from.length === 0 || from.length > 64) return null;
+    return {
+      t: CALL,
+      id,
+      from,
+      name: text(name, 'Someone'),
+      at: typeof at === 'number' && Number.isFinite(at) ? at : Date.now(),
+      tool: typeof tool === 'string' ? tool.slice(0, 64) : undefined,
+      sig: typeof sig === 'string' ? sig.slice(0, MAX_TEXT) : undefined,
+      out: typeof out === 'string' ? out.slice(0, MAX_TEXT) : undefined,
+      err: typeof err === 'string' ? err.slice(0, MAX_TEXT) : undefined,
+    };
+  }
   if (t === ASK || t === REPLY) {
     const { id, from } = data as Record<string, unknown>;
     if (typeof id !== 'string' || id.length === 0 || id.length > 64) return null;
@@ -114,6 +156,7 @@ export const openSession = (
   doc: Y.Doc,
   awareness: Awareness,
   consent?: ConsentHandlers,
+  ledger?: CallHandlers,
 ): Session => {
   const channel = new BroadcastChannel(`copresence:${room}`);
 
@@ -153,6 +196,19 @@ export const openSession = (
         consent?.onAsk(msg.id, msg.req, msg.from, msg.name);
       } else if (msg.t === REPLY) {
         consent?.onReply(msg.id, msg.from, msg.ok);
+      } else if (msg.t === CALL) {
+        if (msg.tool !== undefined && msg.sig !== undefined) {
+          ledger?.onCallStart({
+            id: msg.id,
+            at: msg.at,
+            tool: msg.tool,
+            sig: msg.sig,
+            actor: msg.from,
+            name: msg.name,
+          });
+        } else {
+          ledger?.onCallEnd(msg.id, msg.out, msg.err);
+        }
       } else {
         // Somebody just arrived. Hand them the whole board and everyone we can
         // see, because they have no history and no way to ask for one.
@@ -188,6 +244,9 @@ export const openSession = (
     room,
     ask: (id, from, name, req) => post({ t: ASK, id, from, name, req }),
     reply: (id, from, ok) => post({ t: REPLY, id, from, ok }),
+    callStart: (c, from, name) =>
+      post({ t: CALL, id: c.id, from, name, at: c.at, tool: c.tool, sig: c.sig }),
+    callEnd: (id, from, out, err) => post({ t: CALL, id, from, name: '', at: Date.now(), out, err }),
     close,
   };
 };

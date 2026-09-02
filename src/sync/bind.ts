@@ -9,6 +9,7 @@ import { setPeerCursors, setPeers, usePeerStore } from './peers';
 import { clearPendingShare, shareWasDisplaced } from '../data/pendingShare';
 import { openSession, roomFromLocation, type Session } from './channel';
 import { setConsentTransport, useConfirmStore } from '../agent/confirm';
+import { completeRemoteCall, recordRemoteCall, setCallTransport } from '../agent/webmcp';
 
 /**
  * Wiring the store to the wire.
@@ -110,6 +111,9 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
       useConfirmStore.getState().receiveReply(id, from, ok);
       useConfirmStore.getState().closeRemote(id);
     },
+  }, {
+    onCallStart: (c) => recordRemoteCall(c),
+    onCallEnd: (id, out, err) => completeRemoteCall(id, out, err),
   });
 
   /** True while a remote change is being written into the store. */
@@ -269,6 +273,13 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     peers: () => usePeerStore.getState().peers.map((p) => p.actor),
   });
 
+  // The ledger is the evidence that a model decided something. Kept per-browser
+  // it could not show the one thing this shape is for: two agents, one board.
+  setCallTransport({
+    started: (c) => session.callStart(c, me(), seatName(me())),
+    finished: (c) => session.callEnd(c.id, me(), c.out, c.error),
+  });
+
   const grace = setTimeout(() => {
     graced = true;
     considerAdoption();
@@ -287,6 +298,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     // Says goodbye on the way out, which is what frees anything still in hand.
     session.close();
     setConsentTransport(null);
+    setCallTransport(null);
     if (broadcasting === awareness) broadcasting = null;
     setPeers([]);
     setPeerCursors([]);

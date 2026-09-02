@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { formatArgs, summarizeResult } from './callFormat';
 
 /**
  * WebMCP host adapter.
@@ -22,16 +23,51 @@ export interface ToolDefinition {
 
 type Transport = 'document.modelContext' | 'navigator.modelContext' | 'provideContext' | 'none';
 
+/**
+ * One line of the ledger.
+ *
+ * A call made in another tab arrives already rendered — `sig` and `out` are the
+ * strings that tab drew — rather than as raw args and results. Those can be a
+ * whole board (`get_scene` returns every note), and shipping one per call to
+ * every peer to redraw an identical line would be silly and slow.
+ */
+export interface Call {
+  id: string;
+  at: number;
+  tool: string;
+  args?: unknown;
+  result?: unknown;
+  error?: string;
+  /** The seat that made it. Absent means this tab's own. */
+  by?: { actor: string; name: string };
+  /** Pre-rendered call and outcome, for a call that came off the wire. */
+  sig?: string;
+  out?: string;
+}
+
+/** How a call reaches the other tabs. Injected, so an unconnected page is unchanged. */
+export interface CallTransport {
+  started: (c: { id: string; at: number; tool: string; sig: string }) => void;
+  finished: (c: { id: string; out?: string; error?: string }) => void;
+}
+
+let callTransport: CallTransport | null = null;
+export const setCallTransport = (t: CallTransport | null): void => {
+  callTransport = t;
+};
+
 interface HostState {
   transport: Transport;
   connected: boolean;
   registered: string[];
   /** rolling record of tool calls, whoever made them. */
-  calls: { id: string; at: number; tool: string; args: unknown; result?: unknown; error?: string }[];
+  calls: Call[];
   setHost: (p: Partial<Pick<HostState, 'transport' | 'connected' | 'registered'>>) => void;
   recordCall: (tool: string, args: unknown) => string;
   completeCall: (id: string, result: unknown, error?: string) => void;
 }
+
+const LEDGER_LIMIT = 40;
 
 export const useHostStore = create<HostState>((set) => ({
   transport: 'none',
@@ -41,14 +77,53 @@ export const useHostStore = create<HostState>((set) => ({
   setHost: (p) => set(p),
   recordCall: (tool, args) => {
     const id = `call_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    set((s) => ({ calls: [...s.calls.slice(-40), { id, at: Date.now(), tool, args }] }));
+    const at = Date.now();
+    set((s) => ({ calls: [...s.calls.slice(-(LEDGER_LIMIT - 1)), { id, at, tool, args }] }));
+    callTransport?.started({ id, at, tool, sig: formatArgs(args) });
     return id;
   },
-  completeCall: (id, result, error) =>
+  completeCall: (id, result, error) => {
     set((s) => ({
       calls: s.calls.map((c) => (c.id === id ? { ...c, result, error } : c)),
-    })),
+    }));
+    const call = useHostStore.getState().calls.find((c) => c.id === id);
+    callTransport?.finished({
+      id,
+      out: error === undefined && call ? summarizeResult(call.tool, result) : undefined,
+      error,
+    });
+  },
 }));
+
+/** A call another tab is making, in the moment it starts. */
+export const recordRemoteCall = (c: {
+  id: string;
+  at: number;
+  tool: string;
+  sig: string;
+  actor: string;
+  name: string;
+}): void => {
+  useHostStore.setState((s) =>
+    s.calls.some((existing) => existing.id === c.id)
+      ? s
+      : {
+          calls: [
+            ...s.calls.slice(-(LEDGER_LIMIT - 1)),
+            { id: c.id, at: c.at, tool: c.tool, sig: c.sig, by: { actor: c.actor, name: c.name } },
+          ],
+        },
+  );
+};
+
+/** The same call, once that tab has an answer. */
+export const completeRemoteCall = (id: string, out?: string, error?: string): void => {
+  useHostStore.setState((s) =>
+    s.calls.some((c) => c.id === id)
+      ? { calls: s.calls.map((c) => (c.id === id ? { ...c, out, error } : c)) }
+      : s,
+  );
+};
 
 const getHost = (): { transport: Transport; target: any } => {
   const doc = (globalThis as any).document?.modelContext;

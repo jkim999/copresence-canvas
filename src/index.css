@@ -1139,3 +1139,16 @@ button { font: inherit; cursor: pointer; color: inherit; }
   animation: seat-in 220ms var(--ease-out) both;
 }
 .btn.waiting:hover { background: rgba(168, 73, 42, 0.08); }
+
+/* Whose agent made this call. Only ever set on a call from another tab. */
+.ledger-row .whose {
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(168, 73, 42, 0.16);
+  color: var(--human);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
