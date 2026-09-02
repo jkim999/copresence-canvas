@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useSceneStore } from './state/sceneStore';
 import { sceneFromHash } from './data/shareLink';
+import { arrivedFromLink } from './data/pendingShare';
 import './index.css';
 
 // A shared board is hydrated before the first render, so the seed board never
@@ -11,6 +12,10 @@ import './index.css';
 const shared = sceneFromHash(window.location.hash);
 if (shared) {
   useSceneStore.getState().loadScene(shared);
+  // Kept, because this page may turn out to be open in another tab already —
+  // in which case that tab's board wins and this one has to be offered rather
+  // than quietly dropped.
+  arrivedFromLink(shared);
 }
 
 createRoot(document.getElementById('root')!).render(

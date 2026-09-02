@@ -1131,3 +1131,11 @@ button { font: inherit; cursor: pointer; color: inherit; }
   line-height: 1.5;
 }
 .dialog .asker strong { color: var(--human); font-weight: 600; }
+
+/* A board that arrived in a link and is waiting rather than lost. */
+.btn.waiting {
+  border-color: rgba(168, 73, 42, 0.4);
+  color: var(--human);
+  animation: seat-in 220ms var(--ease-out) both;
+}
+.btn.waiting:hover { background: rgba(168, 73, 42, 0.08); }

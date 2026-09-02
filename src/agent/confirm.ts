@@ -58,6 +58,9 @@ export const setConsentTransport = (t: ConsentTransport | null): void => {
   transport = t;
 };
 
+/** The other people on this board right now, if this tab is connected at all. */
+export const othersHere = (): ActorId[] => transport?.peers() ?? [];
+
 interface Outstanding {
   id: string;
   waiting: Set<ActorId>;

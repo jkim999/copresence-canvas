@@ -6,6 +6,7 @@ import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
 import { holdsOf, peersOf, publish, readPresence, type Cursor, type Presence } from './presence';
 import { setPeerCursors, setPeers, usePeerStore } from './peers';
+import { clearPendingShare, shareWasDisplaced } from '../data/pendingShare';
 import { openSession, roomFromLocation, type Session } from './channel';
 import { setConsentTransport, useConfirmStore } from '../agent/confirm';
 
@@ -154,12 +155,17 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     if (collections(doc).nodes.size > 0) {
       pullScene();
       live = true;
+      // Adopting is the safe answer — nobody's work is overwritten by somebody
+      // opening a link — but a board that came in a link is not thrown away for
+      // it. It waits, and is offered.
+      shareWasDisplaced();
       return;
     }
     if (!oldestSeat()) return;
     // Nobody was here and nobody older is waiting. This tab's board is the room's.
     writeScene(doc, useSceneStore.getState().scene, ORIGIN_LOCAL);
     live = true;
+    clearPendingShare();
   };
 
   const onDoc = (_update: Uint8Array, origin: unknown): void => {

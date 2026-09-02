@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
+import { replaceBoard } from '../state/boardChange';
+import { clearPendingShare, usePendingShare } from '../data/pendingShare';
 import { isAgent, me } from '../state/actors';
 import { useHostStore } from '../agent/webmcp';
 import { usePeerStore } from '../sync/peers';
@@ -62,6 +64,34 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const undoLastAgentAction = useSceneStore((s) => s.undoLastAgentAction);
   const history = useSceneStore((s) => s.history);
   const resetScene = useSceneStore((s) => s.resetScene);
+
+  const waitingBoard = usePendingShare((s) => (s.displaced ? s.scene : null));
+  const loadScene = useSceneStore((s) => s.loadScene);
+
+  // A board that came in a link, held back because this room already had one.
+  const openShared = () => {
+    if (!waitingBoard) return;
+    void replaceBoard(
+      {
+        title: 'Open the shared board for everyone?',
+        body: `This board was already open when you followed that link, so the link's board is waiting. Opening it replaces what is here now, for every person on it.`,
+      },
+      () => {
+        loadScene(waitingBoard, 'Opened the board from the link you followed.');
+        clearPendingShare();
+      },
+    );
+  };
+
+  // Reset throws away everyone's board, not just this tab's view of it.
+  const onReset = () =>
+    void replaceBoard(
+      {
+        title: 'Reset the board for everyone?',
+        body: 'This puts the starting board back and discards everything on the canvas — for every person here, not only you.',
+      },
+      resetScene,
+    );
   const scene = useSceneStore((s) => s.scene);
   const pushLog = useSceneStore((s) => s.pushLog);
   const [copied, flashCopied] = useFlash();
@@ -174,6 +204,16 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
         </span>
       </button>
 
+      {waitingBoard !== null && (
+        <button
+          className="btn waiting"
+          onClick={openShared}
+          title={`The link you followed carries a board of ${waitingBoard.nodes.length} notes. This board was already open, so it was not replaced.`}
+        >
+          Shared board waiting
+        </button>
+      )}
+
       <span className="sep" />
 
       <button
@@ -205,7 +245,7 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
       </button>
       <button
         className="btn icon"
-        onClick={resetScene}
+        onClick={onReset}
         title="Restore the starting board"
         aria-label="Reset the board"
       >

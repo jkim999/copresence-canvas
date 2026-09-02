@@ -6,6 +6,7 @@ import { openSession, type Session } from '../channel';
 import { readScene, writeScene } from '../doc';
 import { holdsFrom, peersOf, publish } from '../presence';
 import { usePeerCursorStore, usePeerStore } from '../peers';
+import { arrivedFromLink, clearPendingShare, usePendingShare } from '../../data/pendingShare';
 import { useSceneStore } from '../../state/sceneStore';
 import { LOCAL_HUMAN, humanId, me, myAgent, seatName } from '../../state/actors';
 import type { Scene, SceneNode } from '../../state/types';
@@ -406,5 +407,42 @@ describe('a board being animated', () => {
     await settle();
 
     expect(readScene(other.doc).nodes.find((n) => n.id === target.id)).toMatchObject({ x: 640 });
+  });
+});
+
+describe('a board followed in from a link', () => {
+  afterEach(() => clearPendingShare());
+
+  it('is kept and offered when the room already has one', async () => {
+    // The room is the URL without its fragment, and the fragment is where a
+    // shared board lives — so following a link with this page already open
+    // lands in an occupied room. Adopting is right; adopting *silently* meant
+    // the board you followed vanished with no dialog and no way back.
+    const room = newRoom();
+    const other = otherTab(room);
+    writeScene(other.doc, board([node('n_theirs')]));
+    await settle();
+
+    const followed = board([node('n_mine')]);
+    store().loadScene(followed);
+    arrivedFromLink(followed);
+    connect(room);
+    await settle();
+
+    expect(store().scene.nodes.map((n) => n.id)).toEqual(['n_theirs']);
+    expect(usePendingShare.getState().displaced).toBe(true);
+    expect(usePendingShare.getState().scene?.nodes.map((n) => n.id)).toEqual(['n_mine']);
+  });
+
+  it('is simply opened when the room is empty', async () => {
+    const room = newRoom();
+    const followed = board([node('n_mine')]);
+    store().loadScene(followed);
+    arrivedFromLink(followed);
+    connect(room);
+    await settle();
+
+    expect(store().scene.nodes.map((n) => n.id)).toEqual(['n_mine']);
+    expect(usePendingShare.getState().scene).toBeNull();
   });
 });

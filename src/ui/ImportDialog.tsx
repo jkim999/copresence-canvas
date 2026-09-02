@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
+import { replaceBoard } from '../state/boardChange';
 import { MAX_NOTES, parseNotes } from '../data/importBoard';
 
 const PLACEHOLDER = `Paste your retro, your interview notes, your backlog —
@@ -38,7 +39,14 @@ export const ImportDialog = ({ open, onClose }: Props) => {
 
   const load = () => {
     if (notes.length === 0) return;
-    loadTexts(notes);
+    // Loading your own material replaces the board everyone else is looking at.
+    void replaceBoard(
+      {
+        title: 'Put your notes on the board for everyone?',
+        body: `This replaces the whole canvas with your ${notes.length} notes, for every person here.`,
+      },
+      () => loadTexts(notes),
+    );
     setRaw('');
     onClose();
   };
