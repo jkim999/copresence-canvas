@@ -18,7 +18,7 @@ import {
   type TweenOutcome,
 } from './motion';
 import { useConfirmStore } from './confirm';
-import { myAgent } from '../state/actors';
+import { myAgent, seatName } from '../state/actors';
 
 const centerOf = (n: SceneNode) => ({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
 
@@ -368,9 +368,16 @@ export interface BoardGroup {
 export const reorganizeBoard = async (
   groups: BoardGroup[],
   rationale: string,
-): Promise<{ approved: boolean; groupsApplied: number; moved: number }> => {
+): Promise<{
+  approved: boolean;
+  groupsApplied: number;
+  moved: number;
+  refusedBy: string | null;
+}> => {
   const total = groups.reduce((sum, g) => sum + g.nodeIds.length, 0);
-  const approved = await useConfirmStore.getState().request({
+  // Everyone on this board is about to have their notes moved, so everyone is
+  // asked. Any one of them can stop it; none of them can commit the others.
+  const verdict = await useConfirmStore.getState().askEveryone({
     title: 'Reorganise the entire board?',
     body: `The agent wants to restructure ${total} notes into ${groups.length} groups. This moves everything on the canvas at once.`,
     detail: [rationale, ...groups.map((g) => `${g.label} — ${g.nodeIds.length} notes`)],
@@ -378,9 +385,19 @@ export const reorganizeBoard = async (
     cancelLabel: 'Not now',
   });
 
-  if (!approved) {
-    useSceneStore.getState().pushLog('system', 'You declined the whole-board reorganisation.');
-    return { approved: false, groupsApplied: 0, moved: 0 };
+  if (!verdict.approved) {
+    const who =
+      verdict.declinedBy === 'you'
+        ? 'You'
+        : verdict.declinedBy !== null
+          ? seatName(verdict.declinedBy)
+          : null;
+    const said =
+      who !== null
+        ? `${who} declined the whole-board reorganisation.`
+        : `Nobody answered on ${verdict.unanswered.map(seatName).join(', ')}'s screen, so the board was left alone.`;
+    useSceneStore.getState().pushLog('system', said);
+    return { approved: false, groupsApplied: 0, moved: 0, refusedBy: who };
   }
 
   useSceneStore.getState().snapshot('Reorganise whole board', myAgent());
@@ -462,7 +479,7 @@ export const reorganizeBoard = async (
   }
 
   hideCursor();
-  return { approved: true, groupsApplied: groups.length, moved };
+  return { approved: true, groupsApplied: groups.length, moved, refusedBy: null };
 };
 
 // ---------------------------------------------------------------------------

@@ -1118,3 +1118,16 @@ button { font: inherit; cursor: pointer; color: inherit; }
   transition: transform 90ms linear;
   animation: seat-in 220ms var(--ease-out) both;
 }
+
+/* Whose question this is. A modal about a board you were not touching needs to
+   account for itself before it makes a demand. */
+.dialog .asker {
+  margin: 0 0 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: rgba(168, 73, 42, 0.09);
+  color: var(--ink-1);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.dialog .asker strong { color: var(--human); font-weight: 600; }

@@ -6,6 +6,11 @@ import { useConfirmStore } from '../agent/confirm';
  * no standard elicitation call yet, so the page owns the gate: the tool handler
  * awaits this dialog, and the agent's own promise does not resolve until the
  * human answers.
+ *
+ * On a board with more than one person, the same question is put to all of
+ * them and any one refusal is enough. So the dialog has to say whose agent is
+ * asking — otherwise a modal appears on your screen about a board you were not
+ * touching, with no account of where it came from.
  */
 export const ConfirmDialog = () => {
   const pending = useConfirmStore((s) => s.pending);
@@ -32,6 +37,12 @@ export const ConfirmDialog = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="gate-title">{pending.title}</h2>
+        {pending.asker !== null && (
+          <p className="asker">
+            <strong>{pending.asker}</strong>&rsquo;s agent is asking. It needs everyone here to
+            agree, and your refusal alone is enough to stop it.
+          </p>
+        )}
         <p>{pending.body}</p>
         {pending.detail && pending.detail.length > 0 && (
           <ul>

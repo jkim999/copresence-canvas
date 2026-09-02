@@ -5,8 +5,9 @@ import { useSceneStore } from '../state/sceneStore';
 import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
 import { holdsOf, peersOf, publish, readPresence, type Cursor, type Presence } from './presence';
-import { setPeerCursors, setPeers } from './peers';
+import { setPeerCursors, setPeers, usePeerStore } from './peers';
 import { openSession, roomFromLocation, type Session } from './channel';
+import { setConsentTransport, useConfirmStore } from '../agent/confirm';
 
 /**
  * Wiring the store to the wire.
@@ -100,7 +101,15 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   const doc = new Y.Doc();
   const awareness = new Awareness(doc);
   const room = options.room ?? roomFromLocation(globalThis.location?.href ?? 'local');
-  const session: Session = openSession(room, doc, awareness);
+  const session: Session = openSession(room, doc, awareness, {
+    onAsk: (id, req, _from, name) => useConfirmStore.getState().openRemote(id, req, name),
+    onReply: (id, from, ok) => {
+      // A reply addressed to a question this tab did not ask is the asker
+      // telling the room the question is over.
+      useConfirmStore.getState().receiveReply(id, from, ok);
+      useConfirmStore.getState().closeRemote(id);
+    },
+  });
 
   /** True while a remote change is being written into the store. */
   let applying = false;
@@ -175,6 +184,8 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     const others = peersOf(awareness).filter((p) => !impostor(p));
     setPeers(others);
     setPeerCursors(others);
+    // Nobody waits on an empty chair for a question they will never answer.
+    useConfirmStore.getState().peersChanged(others.map((p) => p.actor));
     const mine = readPresence(awareness.getLocalState());
     const next = holdsOf(mine ? [mine, ...others] : others);
     considerAdoption();
@@ -243,6 +254,15 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   publish(awareness, { actor: me(), name: seatName(me()), agent: myAgent() });
   broadcasting = awareness;
 
+  // A whole-board change is everyone's business, so the question goes to
+  // everyone. Injected rather than imported so a board with no connection
+  // behaves exactly as it did when there was only ever one person on it.
+  setConsentTransport({
+    ask: (id, req) => session.ask(id, me(), seatName(me()), req),
+    reply: (id, ok) => session.reply(id, me(), ok),
+    peers: () => usePeerStore.getState().peers.map((p) => p.actor),
+  });
+
   const grace = setTimeout(() => {
     graced = true;
     considerAdoption();
@@ -260,6 +280,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     awareness.off('change', pullPresence);
     // Says goodbye on the way out, which is what frees anything still in hand.
     session.close();
+    setConsentTransport(null);
     if (broadcasting === awareness) broadcasting = null;
     setPeers([]);
     setPeerCursors([]);

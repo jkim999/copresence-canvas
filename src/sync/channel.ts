@@ -6,6 +6,8 @@ import {
   removeAwarenessStates,
 } from 'y-protocols/awareness';
 import { leave } from './presence';
+import type { ConfirmRequest } from '../agent/confirm';
+import type { ActorId } from '../state/types';
 
 /**
  * The wire between two tabs.
@@ -28,22 +30,72 @@ export const FROM_CHANNEL = Symbol('from-channel');
 const DOC = 'd';
 const AWARE = 'a';
 const HELLO = 'h';
+const ASK = 'k';
+const REPLY = 'r';
+
+/** Capped hard: a peer's dialog text is rendered on *this* person's screen. */
+const MAX_TEXT = 400;
+const MAX_DETAIL = 12;
 
 type Wire =
   | { t: typeof DOC; u: Uint8Array }
   | { t: typeof AWARE; u: Uint8Array }
-  | { t: typeof HELLO };
+  | { t: typeof HELLO }
+  | { t: typeof ASK; id: string; from: ActorId; name: string; req: ConfirmRequest }
+  | { t: typeof REPLY; id: string; from: ActorId; ok: boolean };
+
+export interface ConsentHandlers {
+  onAsk: (id: string, req: ConfirmRequest, from: ActorId, name: string) => void;
+  onReply: (id: string, from: ActorId, ok: boolean) => void;
+}
 
 export interface Session {
   room: string;
+  ask: (id: string, from: ActorId, name: string, req: ConfirmRequest) => void;
+  reply: (id: string, from: ActorId, ok: boolean) => void;
   close: () => void;
 }
+
+const text = (v: unknown, fallback: string): string =>
+  typeof v === 'string' && v.length > 0 ? v.slice(0, MAX_TEXT) : fallback;
+
+/**
+ * A question from another tab is drawn as a modal on this person's screen, so
+ * it is validated and clamped like any other external input — a peer running a
+ * different build must not be able to put unbounded text in front of anyone.
+ */
+const readRequest = (v: unknown): ConfirmRequest | null => {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.title !== 'string' || typeof r.body !== 'string') return null;
+  return {
+    title: text(r.title, 'A whole-board change'),
+    body: text(r.body, 'Another agent wants to change this board.'),
+    detail: Array.isArray(r.detail)
+      ? r.detail.filter((d): d is string => typeof d === 'string').slice(0, MAX_DETAIL).map((d) => d.slice(0, MAX_TEXT))
+      : undefined,
+    confirmLabel: text(r.confirmLabel, 'Allow'),
+    cancelLabel: text(r.cancelLabel, 'Not now'),
+  };
+};
 
 /** A BroadcastChannel message is structured-cloned, so shapes still need checking. */
 const readWire = (data: unknown): Wire | null => {
   if (!data || typeof data !== 'object') return null;
   const { t, u } = data as Record<string, unknown>;
   if (t === HELLO) return { t: HELLO };
+  if (t === ASK || t === REPLY) {
+    const { id, from } = data as Record<string, unknown>;
+    if (typeof id !== 'string' || id.length === 0 || id.length > 64) return null;
+    if (typeof from !== 'string' || from.length === 0 || from.length > 64) return null;
+    if (t === REPLY) {
+      const { ok } = data as Record<string, unknown>;
+      return typeof ok === 'boolean' ? { t: REPLY, id, from, ok } : null;
+    }
+    const { req, name } = data as Record<string, unknown>;
+    const parsed = readRequest(req);
+    return parsed ? { t: ASK, id, from, name: text(name, 'Someone'), req: parsed } : null;
+  }
   if ((t === DOC || t === AWARE) && u instanceof Uint8Array && u.length > 0) {
     return { t, u } as Wire;
   }
@@ -57,7 +109,12 @@ const readWire = (data: unknown): Wire | null => {
  * silently keeps its grip until awareness times it out, and a note frozen under
  * a hand that is not there is the worst failure this feature has.
  */
-export const openSession = (room: string, doc: Y.Doc, awareness: Awareness): Session => {
+export const openSession = (
+  room: string,
+  doc: Y.Doc,
+  awareness: Awareness,
+  consent?: ConsentHandlers,
+): Session => {
   const channel = new BroadcastChannel(`copresence:${room}`);
 
   const post = (msg: Wire): void => {
@@ -92,6 +149,10 @@ export const openSession = (room: string, doc: Y.Doc, awareness: Awareness): Ses
         Y.applyUpdate(doc, msg.u, FROM_CHANNEL);
       } else if (msg.t === AWARE) {
         applyAwarenessUpdate(awareness, msg.u, FROM_CHANNEL);
+      } else if (msg.t === ASK) {
+        consent?.onAsk(msg.id, msg.req, msg.from, msg.name);
+      } else if (msg.t === REPLY) {
+        consent?.onReply(msg.id, msg.from, msg.ok);
       } else {
         // Somebody just arrived. Hand them the whole board and everyone we can
         // see, because they have no history and no way to ask for one.
@@ -123,7 +184,12 @@ export const openSession = (room: string, doc: Y.Doc, awareness: Awareness): Ses
     channel.close();
   };
 
-  return { room, close };
+  return {
+    room,
+    ask: (id, from, name, req) => post({ t: ASK, id, from, name, req }),
+    reply: (id, from, ok) => post({ t: REPLY, id, from, ok }),
+    close,
+  };
 };
 
 /**

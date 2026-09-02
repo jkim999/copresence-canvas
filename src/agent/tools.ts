@@ -391,9 +391,16 @@ export const buildTools = (): ToolDefinition[] => [
         layout: g?.layout ? asLayout(g.layout) : undefined,
       }));
       const result = await withAgentBody(() => reorganizeBoard(groups, rationale));
-      return result.approved
-        ? result
-        : { ...result, message: 'The human declined. Do not retry without new reasoning.' };
+      if (result.approved) return result;
+      return {
+        ...result,
+        message:
+          result.refusedBy !== null
+            ? `${result.refusedBy} declined. Everyone on this board has to agree to a ` +
+              'whole-board change, and one refusal is enough. Do not retry without new reasoning.'
+            : 'Nobody on the board answered in time, so nothing was moved. Do not retry ' +
+              'without new reasoning.',
+      };
     },
   },
 
