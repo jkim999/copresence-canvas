@@ -2,6 +2,7 @@ import { useSceneStore } from '../state/sceneStore';
 import { isAgent, kindOf, myAgent } from '../state/actors';
 import { LAYOUT_KINDS, type ActorId, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
+import { boardContext } from './boardContext';
 import {
   addNotes,
   annotateScene,
@@ -90,6 +91,21 @@ export const buildTools = (): ToolDefinition[] => [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, title: 'Read the canvas' },
     execute: async () => readScene(),
+  },
+
+  {
+    name: 'get_board_context',
+    description:
+      'Find out who you are and who else is on this board. Returns your own seat name, the ' +
+      'seat name and held notes of every other person connected, whether each of them has an ' +
+      'agent of their own, and the rule that governs a whole-board change. Call this before ' +
+      'your first change on any board you have not seen: without it you cannot tell your own ' +
+      'work from a peer\'s, and you cannot interpret a refusal, which names a seat ' +
+      '("Ochre declined") rather than describing one. It also reports whether this tab is in ' +
+      'the background, which is the usual reason a call takes far longer than you expect.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, title: 'Who else is on this board' },
+    execute: async () => boardContext(),
   },
 
   {
@@ -322,7 +338,11 @@ export const buildTools = (): ToolDefinition[] => [
     name: 'add_notes',
     description:
       'Write new sticky notes onto the canvas — missing evidence, open questions, next steps. ' +
-      'Notes appear in the agent colour so the human can see exactly what you contributed.',
+      'Notes appear in the agent colour so the human can see exactly what you contributed. ' +
+      'This call is NOT idempotent, and it is paced by an animation, so it can take tens of ' +
+      'seconds in a background tab. Never send it again because it seems slow — it has not ' +
+      'been dropped. If you do repeat yourself, text you wrote in the last minute is refused ' +
+      'rather than written twice, and comes back under `alreadyPresent`.',
     inputSchema: {
       type: 'object',
       properties: {
