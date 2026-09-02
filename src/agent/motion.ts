@@ -172,9 +172,13 @@ const tick = (now: number): void => {
  */
 const ensureWatchdog = (): void => {
   if (watchdog !== 0) return;
-  watchdog = window.setInterval(() => {
+  // Reached through the global rather than through `window`. They are the same
+  // two functions in a browser, but this callback outlives whatever scheduled
+  // it, and a `window` that has gone away by the time it fires — a torn-down
+  // test, a page mid-unload — turned the safety net into the thing that threw.
+  watchdog = setInterval(() => {
     if (!hasWork()) {
-      window.clearInterval(watchdog);
+      clearInterval(watchdog);
       watchdog = 0;
       return;
     }
