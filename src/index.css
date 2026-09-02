@@ -621,7 +621,16 @@ button { font: inherit; cursor: pointer; color: inherit; }
 }
 
 .group + .group { margin-top: 22px; }
+.group-title .hint {
+  font-weight: 500;
+  color: var(--ink-3);
+  opacity: 0.6;
+}
 .group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.11em;
@@ -816,19 +825,51 @@ button { font: inherit; cursor: pointer; color: inherit; }
 }
 .call pre.err { color: var(--alert-lift); }
 
+/* A history is a sequence, so it is drawn as one: a hairline runs the length of
+   the column and every change sits on it, knocked out of the line so the mark
+   reads as a station rather than a decoration lying on top of a rule. */
+.history { position: relative; }
+.history::before {
+  content: '';
+  position: absolute;
+  left: 6.5px;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: var(--chrome-line);
+}
+
 .log {
+  position: relative;
   display: flex;
   gap: 9px;
   padding: 7px 0;
   font-size: 11.5px;
   line-height: 1.45;
-  border-bottom: 1px solid var(--chrome-line-soft);
 }
-.log:last-of-type { border-bottom: none; }
+/* The divider starts where the text starts. Run it the full width and it cuts
+   across the rail at every row, turning one continuous line into a ladder. */
+.log::after {
+  content: '';
+  position: absolute;
+  left: 23px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--chrome-line-soft);
+}
+.log:last-of-type::after { display: none; }
 .log .who {
   flex: none;
-  width: 7px;
-  padding-top: 5px;
+  width: 14px;
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  padding: 2px 0;
+  margin-top: 1px;
+  /* Knocks the rail out behind the mark. */
+  background: var(--chrome);
+  color: var(--ink-3);
 }
 .log .who i {
   display: block;
@@ -837,8 +878,33 @@ button { font: inherit; cursor: pointer; color: inherit; }
   border-radius: 50%;
   background: var(--ink-3);
 }
+/* Colour carries who, the mark carries what. Neither ever borrows the other. */
+.log.agent .who { color: var(--agent-lift); }
+.log.human .who { color: var(--human-lift); }
 .log.agent .who i { background: var(--agent-lift); }
 .log.human .who i { background: var(--human-lift); }
+
+/* A row that names notes can point at them. The tint starts after the mark so
+   the rail stays a clean vertical, and the row itself never moves: a list that
+   shifts under the pointer is a list you stop scanning. */
+.log.locatable { cursor: default; }
+.log.locatable::before {
+  content: '';
+  position: absolute;
+  inset: 1px -7px 1px 20px;
+  border-radius: 7px;
+  background: transparent;
+  transition: background 140ms var(--ease-out);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .log.locatable:hover::before { background: rgba(239, 235, 226, 0.055); }
+}
+.log.locatable:focus-visible { outline: none; }
+.log.locatable:focus-visible::before {
+  background: rgba(239, 235, 226, 0.055);
+  box-shadow: 0 0 0 1.5px var(--agent-lift);
+}
 .log .body { color: var(--ink-1); min-width: 0; word-break: break-word; }
 .log .t {
   margin-left: auto;
@@ -1183,11 +1249,15 @@ button { font: inherit; cursor: pointer; color: inherit; }
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 12;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-width: min(520px, calc(100% - 32px));
+  /* Centred on the board, not on the workspace — anchored to the workspace it
+     drifted right by half the panel's width and ran under the mock-host device
+     in the corner, clipping the count pill. It also wins on depth: a warning
+     about the canvas outranks a decorative prop sitting on it. */
+  max-width: min(520px, calc(100% - 220px));
   padding: 8px 13px;
   border-radius: 999px;
   background: var(--chrome);
@@ -1203,17 +1273,49 @@ button { font: inherit; cursor: pointer; color: inherit; }
     transform: translateX(-50%) translateY(-6px);
   }
 }
+/* And nothing in the real world vanishes mid-sentence either. The rows are
+   held for one short fade so finishing reads as finishing, not as a glitch. */
+.happening.leaving {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px) scale(0.98);
+}
 .happening-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   margin: 0;
   font-size: 11.5px;
   line-height: 1.35;
   color: var(--ink-0);
   white-space: nowrap;
   overflow: hidden;
+}
+/* The seat is a chip, not the first two words of a sentence — and it carries
+   the colour of the rings now drawn around the notes it named. Teal out there
+   is work you can call off; terracotta belongs to somebody else's seat. */
+.happening-row .who {
+  flex: none;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--human-lift);
+}
+.happening-row.own .who { color: var(--agent-lift); }
+.happening-row .what {
+  color: var(--ink-1);
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Says the strip and the board are talking about the same notes. */
+.happening-row .ringed {
+  flex: none;
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 100px;
+  border: 1px dashed rgba(239, 235, 226, 0.22);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
 }
 .happening-row .pulse {
   flex: none;
@@ -1237,4 +1339,29 @@ button { font: inherit; cursor: pointer; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .happening { transition: none; }
   .happening-row .pulse { animation: none; }
+  .note.pending { animation: none; }
+}
+
+/* --- what is about to happen, on the notes themselves ------------------------
+   The sentence above the board names a count; these name the notes. Drawn as an
+   outline rather than a ring in the box-shadow stack, so it sits outside the
+   paper without being clipped by it and stacks cleanly over selection and
+   provenance — a note can be held by you, made by an agent, and claimed by the
+   next act all at once, and all three must stay readable. */
+.note.pending {
+  outline: 1.5px dashed var(--human);
+  outline-offset: 4px;
+  animation: pending-breathe 2s var(--ease-in-out) infinite;
+}
+.note.pending-own { outline-color: var(--agent); }
+@keyframes pending-breathe {
+  50% { outline-offset: 7px; }
+}
+
+/* A history row under the pointer, answering "which ones" in the only place the
+   question can be answered. Near-black, borrowing neither actor's colour: this
+   is the reader's attention, not a claim on the board. */
+.note.traced {
+  box-shadow: 0 0 0 2px var(--board-ink), var(--lift-2);
+  transform: translateY(-1px);
 }
