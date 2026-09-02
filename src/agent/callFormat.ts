@@ -82,6 +82,9 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       break;
     }
     case 'arrange_region':
+      // First, because it changes how everything after it should be read: a
+      // small number of moves is a different fact when it was cut short.
+      if (r.stoppedByHuman) parts.push('you stopped it');
       parts.push(`moved ${count(r.moved)}`);
       if (r.layout) parts.push(String(r.layout));
       if (count(r.yieldedToHuman) > 0) parts.push(`yielded ${count(r.yieldedToHuman)} to you`);
@@ -89,6 +92,7 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       // Without this, ids that matched nothing read exactly like a board that
       // needed no rearranging.
       if (count(r.unknownIds) > 0) parts.push(`${count(r.unknownIds)} unknown`);
+      if (count(r.notReached) > 0) parts.push(`${count(r.notReached)} left alone`);
       break;
     case 'find_and_link': {
       parts.push(`${count(r.created)} edges drawn`);
@@ -118,7 +122,9 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       // out of time. Collapsing all three into "you declined" told the reader
       // their own human had refused something they were never asked.
       parts.push(
-        r.approved
+        r.approved && r.stopped
+          ? `you stopped it · ${count(r.groupsApplied)} groups done`
+          : r.approved
           ? `approved · ${count(r.groupsApplied)} groups`
           : typeof r.refusedBy === 'string' && r.refusedBy.length > 0
             ? r.refusedBy === 'You'

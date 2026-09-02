@@ -25,11 +25,39 @@ import type { Intent } from '../state/types';
 interface IntentState {
   /** This tab's agent's current announcement, or nothing when it is idle. */
   mine: Intent | null;
+  /**
+   * Set when the human has called the running act off, and cleared with the
+   * announcement it belongs to. Objecting to one act is not a standing
+   * objection: the next act is one nobody has yet had a chance to see.
+   */
+  stopping: boolean;
 }
 
-export const useIntentStore = create<IntentState>(() => ({ mine: null }));
+export const useIntentStore = create<IntentState>(() => ({ mine: null, stopping: false }));
 
 export const currentIntent = (): Intent | null => useIntentStore.getState().mine;
+
+/**
+ * Call the running act off.
+ *
+ * Cooperative, not an abort. A note mid-flight is finished rather than dropped
+ * where it happens to be, so whatever is on the board when this lands is an
+ * arrangement somebody chose — and the grip the agent holds is released the way
+ * it always is, by the tween ending, rather than needing a second path that
+ * could leave a note claimed by an actor that has stopped.
+ *
+ * Only this tab's own agent can be called off. Reaching across the wire to halt
+ * somebody else's agent is a different power with a different rule about who
+ * may use it, and it is not going to be smuggled in behind a button that reads
+ * as "stop mine".
+ */
+export const requestStop = (): void => {
+  if (useIntentStore.getState().mine === null) return;
+  useIntentStore.setState({ stopping: true });
+};
+
+/** Whether the human has asked the act now running to stop. */
+export const stopRequested = (): boolean => useIntentStore.getState().stopping;
 
 /**
  * Declare an act, do it, then take the declaration down — including when the
@@ -41,14 +69,16 @@ export const announce = async <T>(
   run: () => Promise<T>,
 ): Promise<T> => {
   const mine: Intent = { ...what, at: Date.now() };
-  useIntentStore.setState({ mine });
+  useIntentStore.setState({ mine, stopping: false });
   try {
     return await run();
   } finally {
     // Only ever retract our own. An act that started while this one was
     // settling has already replaced it, and clearing that would hide work
     // which is genuinely still running.
-    if (useIntentStore.getState().mine === mine) useIntentStore.setState({ mine: null });
+    if (useIntentStore.getState().mine === mine) {
+      useIntentStore.setState({ mine: null, stopping: false });
+    }
   }
 };
 

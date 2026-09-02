@@ -140,7 +140,8 @@ export const buildTools = (): ToolDefinition[] => [
   {
     name: 'get_board_context',
     description:
-      'Find out who you are and who else is on this board. Returns your own seat name, the ' +
+      'Find out who you are and who else is on this board. Returns your own seat name, what ' +
+      'your human currently has selected — which is what they mean by "these" — the ' +
       'seat name and held notes of every other person connected, whether each of them has an ' +
       'agent of their own, and the rule that governs a whole-board change. Call this before ' +
       'your first change on any board you have not seen: without it you cannot tell your own ' +
@@ -201,14 +202,24 @@ export const buildTools = (): ToolDefinition[] => [
       const holding = notesOf((by) => !isAgent(by));
       const machines = notesOf((by) => isAgent(by) && by !== myAgent());
 
+      // Pointing, as distinct from holding. A held note is one you must not
+      // touch; a selected one is one they are most likely talking about.
+      const selected = state.scene.nodes
+        .filter((n) => n.selected)
+        .map((n) => ({ id: n.id, text: n.text }));
+
       return {
         holdingRightNow: holding,
+        selectedRightNow: selected,
         heldByOtherAgents: machines,
         recentlyTouched: touched.slice(0, 20),
         windowSeconds: Math.round(window / 1000),
         note:
           holding.length > 0
             ? 'The human is holding those notes right now. Leave them alone and work elsewhere.'
+            : selected.length > 0
+              ? 'The human has those notes selected. Selection forbids nothing — it is what ' +
+                'they are pointing at, and what they mean if they say "these".'
             : machines.length > 0
               ? 'Another agent has hold of those notes. It is working on this board too — ' +
                 'leave them where they are and organise somewhere else.'
@@ -277,6 +288,18 @@ export const buildTools = (): ToolDefinition[] => [
         yieldedToHuman: result.yieldedToHuman,
         // Unrelated notes that were sitting where the group had to go.
         nudgedAside: result.nudgedAside,
+        // The human called this off part way. Distinct from a yield: nobody
+        // grabbed a note out of your hands, you were told to stop.
+        stoppedByHuman: result.stopped,
+        notReached: result.notReached,
+        ...(result.stopped
+          ? {
+              stopNote:
+                'The human stopped this act while it was running. The notes under ' +
+                '`notReached` were never touched and no region was drawn. Do not resume ' +
+                'and do not try again: ask what they wanted instead.',
+            }
+          : {}),
         ...(result.yieldedToHuman.length > 0
           ? {
               note:
@@ -515,7 +538,18 @@ export const buildTools = (): ToolDefinition[] => [
           () => reorganizeBoard(groups, rationale),
         ),
       );
-      if (result.approved) return result;
+      if (result.approved) {
+        return result.stopped
+          ? {
+              ...result,
+              message:
+                'The human stopped this part way through. The groups under ' +
+                '`groupsNotReached` were never laid out. Consent was given and then ' +
+                'withdrawn while you worked, which is not the same as a refusal: ask ' +
+                'what they wanted instead rather than proposing this again.',
+            }
+          : result;
+      }
       return {
         ...result,
         message:

@@ -18,7 +18,8 @@ import {
   type TweenOutcome,
 } from './motion';
 import { useConfirmStore } from './confirm';
-import { myAgent, seatName } from '../state/actors';
+import { me, myAgent, seatName } from '../state/actors';
+import { stopRequested } from './intent';
 import { splitRepeats, type Repeat } from './dedupe';
 
 const centerOf = (n: SceneNode) => ({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
@@ -66,6 +67,10 @@ export interface CursorThroughResult {
   moved: number;
   /** notes the human grabbed mid-flight — the agent let go of these. */
   yieldedToHuman: string[];
+  /** notes never reached, because the human called the act off part way. */
+  notReached: string[];
+  /** whether the human stopped this act before it finished. */
+  stopped: boolean;
 }
 
 export const animateAgentCursorThrough = async (
@@ -74,13 +79,23 @@ export const animateAgentCursorThrough = async (
 ): Promise<CursorThroughResult> => {
   const { targets, speed = 1.7, grabPause = 55, carryDuration = 440, onVisit } = options;
   const nodes = resolveNodes(nodeIds);
-  if (nodes.length === 0) return { moved: 0, yieldedToHuman: [] };
+  if (nodes.length === 0) {
+    return { moved: 0, yieldedToHuman: [], notReached: [], stopped: false };
+  }
 
   const path = visitOrder(nodes, cursorPoint());
   const carries: Promise<{ id: string; outcome: TweenOutcome }>[] = [];
   let visitedWithoutTarget = 0;
 
-  for (const node of path) {
+  let stoppedAt = -1;
+  for (const [index, node] of path.entries()) {
+    // Checked between notes rather than mid-flight. A note dropped halfway to
+    // somewhere is a position nobody chose; a note that never left is exactly
+    // where its owner last put it.
+    if (stopRequested()) {
+      stoppedAt = index;
+      break;
+    }
     const live = useSceneStore.getState().getNode(node.id);
     if (!live) continue;
     await moveCursorTo(centerOf(live).x, centerOf(live).y, { speed, mode: 'travelling' });
@@ -107,9 +122,25 @@ export const animateAgentCursorThrough = async (
   // Only a hand on the note counts as yielding. A tween the agent replaced is
   // its own business and must not be reported to the model as a refusal.
   const yieldedToHuman = settled.filter((c) => c.outcome === 'yielded').map((c) => c.id);
+  const notReached = stoppedAt < 0 ? [] : path.slice(stoppedAt).map((n) => n.id);
+  if (stoppedAt >= 0) {
+    // Attributed to the human, because the human did it. This is the one line
+    // in the record where a person overruled a machine mid-act, and burying it
+    // under the agent's name would make the record say the opposite.
+    useSceneStore
+      .getState()
+      .pushLog(
+        me(),
+        `Stopped the agent after ${stoppedAt} of ${path.length} note${
+          path.length === 1 ? '' : 's'
+        }.`,
+      );
+  }
   return {
     moved: settled.filter((c) => c.outcome === 'landed').length + visitedWithoutTarget,
     yieldedToHuman,
+    notReached,
+    stopped: stoppedAt >= 0,
   };
 };
 
@@ -188,6 +219,9 @@ export interface ArrangeResult {
   skipped: string[];
   yieldedToHuman: string[];
   nudgedAside: string[];
+  /** notes left where they were, because the human called the act off. */
+  notReached: string[];
+  stopped: boolean;
 }
 
 export const arrangeRegion = async (
@@ -207,6 +241,8 @@ export const arrangeRegion = async (
       skipped,
       yieldedToHuman: [],
       nudgedAside: [],
+      notReached: [],
+      stopped: false,
     };
   }
 
@@ -217,11 +253,19 @@ export const arrangeRegion = async (
     nodes.map((n) => ({ id: n.id, x: raw[n.id].x, y: raw[n.id].y, w: n.w, h: n.h })),
   );
 
-  const { moved, yieldedToHuman } = await animateAgentCursorThrough(nodeIds, { targets });
-  const nudgedAside = await clearStrays(nodes.map((n) => n.id), targets);
+  const { moved, yieldedToHuman, notReached, stopped } = await animateAgentCursorThrough(
+    nodeIds,
+    { targets },
+  );
+  // Sweeping bystanders aside is tidying up after an arrangement. Once the act
+  // has been called off there is no arrangement to tidy around, and shoving
+  // uninvolved notes about after being told to stop is the opposite of obeying.
+  const nudgedAside = stopped ? [] : await clearStrays(nodes.map((n) => n.id), targets);
 
   let regionId: string | null = null;
-  if (label) {
+  // A labelled region drawn around notes that were never gathered is a claim
+  // about the board that the board does not support. Stopped means stopped.
+  if (label && !stopped) {
     const region = useSceneStore.getState().upsertRegion(
       { id: `r_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`, label, layout, nodeIds: nodes.map((n) => n.id) },
       myAgent(),
@@ -229,7 +273,17 @@ export const arrangeRegion = async (
     regionId = region.id;
   }
 
-  return { moved, layout, regionId, label: label ?? null, skipped, yieldedToHuman, nudgedAside };
+  return {
+    moved,
+    layout,
+    regionId,
+    label: label ?? null,
+    skipped,
+    yieldedToHuman,
+    nudgedAside,
+    notReached,
+    stopped,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -406,6 +460,9 @@ export const reorganizeBoard = async (
   groupsApplied: number;
   moved: number;
   refusedBy: string | null;
+  stopped: boolean;
+  /** groups never laid out, because the human called the act off. */
+  groupsNotReached: string[];
 }> => {
   const total = groups.reduce((sum, g) => sum + g.nodeIds.length, 0);
   // Everyone on this board is about to have their notes moved, so everyone is
@@ -430,7 +487,14 @@ export const reorganizeBoard = async (
         ? `${who} declined the whole-board reorganisation.`
         : `Nobody answered on ${verdict.unanswered.map(seatName).join(', ')}'s screen, so the board was left alone.`;
     useSceneStore.getState().pushLog('system', said);
-    return { approved: false, groupsApplied: 0, moved: 0, refusedBy: who };
+    return {
+      approved: false,
+      groupsApplied: 0,
+      moved: 0,
+      refusedBy: who,
+      stopped: false,
+      groupsNotReached: [],
+    };
   }
 
   useSceneStore.getState().snapshot('Reorganise whole board', myAgent());
@@ -473,6 +537,8 @@ export const reorganizeBoard = async (
   let rowY = origin.y + 180;
   let rowHeight = 0;
   let moved = 0;
+  let groupsApplied = 0;
+  let stoppedAfter = -1;
 
   for (const block of blocks) {
     if (cursorX > origin.x && cursorX + block.w > origin.x + ROW_LIMIT) {
@@ -496,6 +562,14 @@ export const reorganizeBoard = async (
       carryDuration: 430,
     });
     moved += outcome.moved;
+    // The board is restructured a group at a time, so stopping leaves the
+    // groups already laid out standing and the rest untouched. Half-gathering
+    // the group that was interrupted is why the region below is skipped too.
+    if (outcome.stopped) {
+      stoppedAfter = groupsApplied;
+      break;
+    }
+    groupsApplied += 1;
 
     useSceneStore.getState().upsertRegion(
       {
@@ -512,7 +586,14 @@ export const reorganizeBoard = async (
   }
 
   hideCursor();
-  return { approved: true, groupsApplied: groups.length, moved, refusedBy: null };
+  return {
+    approved: true,
+    groupsApplied,
+    moved,
+    refusedBy: null,
+    stopped: stoppedAfter >= 0,
+    groupsNotReached: stoppedAfter < 0 ? [] : groups.slice(stoppedAfter).map((g) => g.label),
+  };
 };
 
 // ---------------------------------------------------------------------------

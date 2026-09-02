@@ -5,11 +5,13 @@ import {
   announce,
   currentIntent,
   describeIntent,
+  requestStop,
+  stopRequested,
   useIntentStore,
 } from '../intent';
 import { publish, readPresence } from '../../sync/presence';
 
-beforeEach(() => useIntentStore.setState({ mine: null }));
+beforeEach(() => useIntentStore.setState({ mine: null, stopping: false }));
 
 const arranging = { verb: 'arranging', what: '8 notes into a timeline', ids: ['n1', 'n2'] };
 
@@ -109,5 +111,46 @@ describe('an announcement on the wire', () => {
     const awareness = room();
     publish(awareness, { actor: 'h_1' });
     expect(readPresence(awareness.getLocalState())?.doing).toBeNull();
+  });
+});
+
+/**
+ * The strip that announces an act said, in as many words, that the rings it
+ * puts on the board are "the ones you can call off" — and nothing anywhere
+ * could call anything off. An interface that offers a window and no handle is
+ * worse than one that offers neither, because the person believes it.
+ *
+ * Stopping is cooperative rather than an abort: the act puts the board down
+ * between notes, so what is left is always an arrangement somebody chose, and
+ * the caller is told plainly that it was stopped rather than being left to
+ * infer it from a short result.
+ */
+describe('calling a running act off', () => {
+  it('is not asking for anything when nothing is running', () => {
+    requestStop();
+    expect(stopRequested()).toBe(false);
+  });
+
+  it('is heard by the act that is running', async () => {
+    let heard = false;
+    await announce(arranging, async () => {
+      requestStop();
+      heard = stopRequested();
+    });
+    expect(heard).toBe(true);
+  });
+
+  it('does not carry over to the next act, which nobody has objected to', async () => {
+    await announce(arranging, async () => requestStop());
+    let heard = true;
+    await announce(arranging, async () => {
+      heard = stopRequested();
+    });
+    expect(heard).toBe(false);
+  });
+
+  it('is forgotten once the act it stopped has ended', async () => {
+    await announce(arranging, async () => requestStop());
+    expect(stopRequested()).toBe(false);
   });
 });

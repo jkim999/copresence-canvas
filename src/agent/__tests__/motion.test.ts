@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { moveCursorTo, tweenNodeTo, useCursorStore } from '../motion';
+import { animateAgentCursorThrough } from '../actions';
+import { announce, requestStop, useIntentStore } from '../intent';
 import { useSceneStore } from '../../state/sceneStore';
 import { LOCAL_HUMAN, myAgent } from '../../state/actors';
 
@@ -193,5 +195,90 @@ describe('a tab nobody is looking at', () => {
 
     await settled;
     expect(store().getNode(id)!.x).toBe(from + 500);
+  });
+});
+
+
+/**
+ * Calling an act off, at the level where it actually has to take effect.
+ *
+ * The strip has always said the rings it draws are "the ones you can call off"
+ * and until now nothing could call anything off. What makes the handle honest
+ * is here rather than in the button: the loop has to notice, it has to stop
+ * between notes rather than dropping one mid-air, and it has to report that it
+ * was stopped — a short result the caller has to infer from is how an agent
+ * decides to helpfully try again.
+ *
+ * A browser cannot demonstrate this, which is why it is pinned here. In a tab
+ * nobody is looking at, every tween lands instantly and there is genuinely
+ * nothing left to stop by the time a probe can run.
+ */
+describe('stopping an act that is under way', () => {
+  const ids = () => useSceneStore.getState().scene.nodes.slice(0, 6).map((n) => n.id);
+
+  beforeEach(() => useIntentStore.setState({ mine: null, stopping: false }));
+
+  it('runs to the end when nobody objects', async () => {
+    const result = await announce({ verb: 'arranging', what: '6 notes', ids: ids() }, () =>
+      animateAgentCursorThrough(ids(), {
+        targets: Object.fromEntries(ids().map((id, i) => [id, { x: i * 100, y: 0 }])),
+        speed: 40,
+        grabPause: 0,
+        carryDuration: 20,
+      }),
+    );
+    expect(result.stopped).toBe(false);
+    expect(result.notReached).toEqual([]);
+    expect(result.moved).toBe(6);
+  });
+
+  it('puts the board down between notes and says which it never reached', async () => {
+    let visited = 0;
+    const result = await announce({ verb: 'arranging', what: '6 notes', ids: ids() }, () =>
+      animateAgentCursorThrough(ids(), {
+        targets: Object.fromEntries(ids().map((id, i) => [id, { x: i * 100, y: 0 }])),
+        speed: 40,
+        grabPause: 0,
+        carryDuration: 20,
+        onVisit: () => {
+          visited += 1;
+          if (visited === 2) requestStop();
+        },
+      }),
+    );
+
+    expect(result.stopped).toBe(true);
+    // Two were reached; the rest were never touched, and the caller is told so
+    // by name rather than being left to subtract.
+    expect(result.moved).toBe(2);
+    expect(result.notReached).toHaveLength(4);
+    expect(result.moved + result.notReached.length).toBe(6);
+  });
+
+  it('leaves the notes it never reached exactly where their owner put them', async () => {
+    const all = ids();
+    const before = new Map(
+      all.map((id) => {
+        const n = useSceneStore.getState().getNode(id)!;
+        return [id, { x: n.x, y: n.y }];
+      }),
+    );
+
+    const result = await announce({ verb: 'arranging', what: '6 notes', ids: all }, () =>
+      animateAgentCursorThrough(all, {
+        targets: Object.fromEntries(all.map((id, i) => [id, { x: 9000 + i * 100, y: 9000 }])),
+        speed: 40,
+        grabPause: 0,
+        carryDuration: 20,
+        onVisit: () => requestStop(),
+      }),
+    );
+
+    // Not vacuous: an empty list would pass the loop below without asserting.
+    expect(result.notReached.length).toBeGreaterThan(0);
+    for (const id of result.notReached) {
+      const after = useSceneStore.getState().getNode(id)!;
+      expect({ x: after.x, y: after.y }).toEqual(before.get(id));
+    }
   });
 });
