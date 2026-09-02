@@ -171,3 +171,25 @@ describe('the new legibility tools on the ledger line', () => {
     expect(out).toBe('1 edges drawn · 3 skipped (no such note, already linked)');
   });
 });
+
+/**
+ * Found live: `arrange_region` with ids that do not exist on the board came
+ * back as "moved 0 · cluster". The result already carried `unknownIds`, but the
+ * one line a person actually reads showed nothing, so "nothing needed moving"
+ * and "your ids were wrong" looked identical.
+ */
+describe('an act that could not find what it was sent after', () => {
+  it('says so, rather than reporting a quiet zero', () => {
+    const line = summarizeResult('arrange_region', {
+      moved: 0,
+      layout: 'cluster',
+      unknownIds: ['n_04', 'n_05'],
+    });
+    expect(line).toMatch(/2 unknown/);
+  });
+
+  it('stays quiet when every id resolved', () => {
+    const line = summarizeResult('arrange_region', { moved: 3, layout: 'grid', unknownIds: [] });
+    expect(line).not.toMatch(/unknown/);
+  });
+});

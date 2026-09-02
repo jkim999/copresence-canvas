@@ -412,7 +412,7 @@ export const reorganizeBoard = async (
   // asked. Any one of them can stop it; none of them can commit the others.
   const verdict = await useConfirmStore.getState().askEveryone({
     title: 'Reorganise the entire board?',
-    body: `The agent wants to restructure ${total} notes into ${groups.length} groups. This moves everything on the canvas at once.`,
+    body: `The agent wants to restructure ${total} notes into ${groups.length} group${groups.length === 1 ? '' : 's'}. This moves everything on the canvas at once.`,
     detail: [rationale, ...groups.map((g) => `${g.label} — ${g.nodeIds.length} notes`)],
     confirmLabel: 'Let it reorganise',
     cancelLabel: 'Not now',

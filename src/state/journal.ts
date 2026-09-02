@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { me } from './actors';
+import { me, myAgent } from './actors';
+import { currentIntent } from '../agent/intent';
 import { useSceneStore } from './sceneStore';
 import type { ActorId, Scene } from './types';
 
@@ -46,6 +47,15 @@ export interface JournalFact {
   ids: string[];
   /** A sample of the material: a note's text, an edge's label, a region's name. */
   detail: string;
+  /**
+   * The announcement this write belongs to, when it belongs to one.
+   *
+   * An agent act is not instantaneous: it animates, and it shoves bystanders
+   * aside as it goes, so its writes arrive over seconds. Timing alone therefore
+   * split one decision into several rows — a person reading the history saw six
+   * acts where there had been one. The act is the unit, not the clock.
+   */
+  act?: number;
 }
 
 export interface JournalEvent extends JournalFact {
@@ -86,8 +96,14 @@ export const resetJournal = (): void => useJournalStore.setState({ events: [], s
 /** The bookmark a reader holds so it can ask what has happened since. */
 export const journalCursor = (): number => useJournalStore.getState().seq;
 
-const foldable = (last: JournalEvent, fact: JournalFact): boolean =>
-  last.by === fact.by && last.verb === fact.verb && fact.at - last.at <= COALESCE_MS;
+const foldable = (last: JournalEvent, fact: JournalFact): boolean => {
+  if (last.by !== fact.by || last.verb !== fact.verb) return false;
+  // Two acts are never one line, however fast they follow each other; and one
+  // act is always one line, however long it takes to finish.
+  if (last.act !== undefined || fact.act !== undefined) return last.act === fact.act;
+  // A human drag belongs to no act, so it still folds on the clock.
+  return fact.at - last.at <= COALESCE_MS;
+};
 
 export const recordFacts = (facts: JournalFact[]): void => {
   if (facts.length === 0) return;
@@ -246,8 +262,31 @@ export const diffScene = (prev: Scene, next: Scene, at: number): JournalFact[] =
 const OPEN = '“';
 const CLOSE = '”';
 
-const quote = (detail: string, max = 44): string =>
-  `${OPEN}${detail.length > max ? `${detail.slice(0, max - 1)}…` : detail}${CLOSE}`;
+/**
+ * Note text is often already a quotation — these boards are full of interview
+ * transcript — and wrapping it again produced ““I gave up.””. One pair of marks
+ * is the sentence; a second pair is a rendering bug on display.
+ */
+const unquoted = (detail: string): string => {
+  const head = detail[0];
+  const tail = detail[detail.length - 1];
+  const paired =
+    detail.length > 1 &&
+    ((head === '"' && tail === '"') || (head === OPEN && tail === CLOSE));
+  return paired ? detail.slice(1, -1) : detail;
+};
+
+/**
+ * Quotation inside quotation gets the inner marks, the way print has always
+ * done it. Without this the outer pair landed straight on top of the inner one
+ * and the sentence read as broken punctuation rather than as nested speech.
+ */
+const nested = (text: string): string => text.replace(/"([^"]*)"/g, '\u2018$1\u2019');
+
+const quote = (detail: string, max = 44): string => {
+  const text = nested(unquoted(detail));
+  return `${OPEN}${text.length > max ? `${text.slice(0, max - 1)}…` : text}${CLOSE}`;
+};
 
 const NOUN: Record<JournalVerb, [string, string]> = {
   added: ['note', 'notes'],
@@ -262,17 +301,18 @@ const NOUN: Record<JournalVerb, [string, string]> = {
   replaced: ['board', 'boards'],
 };
 
-const VERB: Record<JournalVerb, [string, string]> = {
-  added: ['added', 'was added'],
-  moved: ['moved', 'moved'],
-  retitled: ['rewrote', 'was rewritten'],
-  recoloured: ['recoloured', 'was recoloured'],
-  removed: ['removed', 'was removed'],
-  linked: ['drew', 'was drawn'],
-  unlinked: ['removed', 'was removed'],
-  grouped: ['formed', 'was formed'],
-  annotated: ['left', 'was left'],
-  replaced: ['replaced', 'was replaced'],
+/** Active, then the passive in both numbers: "3 notes was removed" is not English. */
+const VERB: Record<JournalVerb, [string, string, string]> = {
+  added: ['added', 'was added', 'were added'],
+  moved: ['moved', 'moved', 'moved'],
+  retitled: ['rewrote', 'was rewritten', 'were rewritten'],
+  recoloured: ['recoloured', 'was recoloured', 'were recoloured'],
+  removed: ['removed', 'was removed', 'were removed'],
+  linked: ['drew', 'was drawn', 'were drawn'],
+  unlinked: ['removed', 'was removed', 'were removed'],
+  grouped: ['formed', 'was formed', 'were formed'],
+  annotated: ['left', 'was left', 'were left'],
+  replaced: ['replaced', 'was replaced', 'were replaced'],
 };
 
 /**
@@ -285,7 +325,8 @@ const VERB: Record<JournalVerb, [string, string]> = {
 export const describeEvent = (event: JournalEvent, name: string | null): string => {
   const n = event.ids.length;
   const [one, many] = NOUN[event.verb];
-  const [active, passive] = VERB[event.verb];
+  const [active, passiveOne, passiveMany] = VERB[event.verb];
+  const passive = n === 1 ? passiveOne : passiveMany;
   const subject = n === 1 ? `a ${one}` : `${n} ${many}`;
   const tail = event.detail ? ` — ${quote(event.detail)}` : '';
 
@@ -315,6 +356,18 @@ export const describeEvent = (event: JournalEvent, name: string | null): string 
  * — is both enormous and a worse account of what happened than the one sentence
  * it deserves.
  */
+/**
+ * The announcement this tab's agent is running, used to tie every write it
+ * causes to one act. A peer's writes arrive already folded by their own tab.
+ */
+const runningAct = (): number | undefined => currentIntent()?.at;
+
+const stamped = (facts: JournalFact[]): JournalFact[] => {
+  const act = runningAct();
+  if (act === undefined) return facts;
+  return facts.map((f) => (f.by === myAgent() ? { ...f, act } : f));
+};
+
 export const watchScene = (): (() => void) =>
   useSceneStore.subscribe((state, prev) => {
     if (state.epoch !== prev.epoch) {
@@ -326,5 +379,5 @@ export const watchScene = (): (() => void) =>
       return;
     }
     if (state.scene === prev.scene) return;
-    recordFacts(diffScene(prev.scene, state.scene, Date.now()));
+    recordFacts(stamped(diffScene(prev.scene, state.scene, Date.now())));
   });

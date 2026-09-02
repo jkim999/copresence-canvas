@@ -86,6 +86,9 @@ export const summarizeResult = (tool: string, result: unknown): string => {
       if (r.layout) parts.push(String(r.layout));
       if (count(r.yieldedToHuman) > 0) parts.push(`yielded ${count(r.yieldedToHuman)} to you`);
       if (count(r.nudgedAside) > 0) parts.push(`nudged ${count(r.nudgedAside)} aside`);
+      // Without this, ids that matched nothing read exactly like a board that
+      // needed no rearranging.
+      if (count(r.unknownIds) > 0) parts.push(`${count(r.unknownIds)} unknown`);
       break;
     case 'find_and_link': {
       parts.push(`${count(r.created)} edges drawn`);

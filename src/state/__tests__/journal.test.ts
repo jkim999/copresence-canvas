@@ -208,6 +208,45 @@ describe('the journal', () => {
   });
 });
 
+/**
+ * Found by two agents driving one board: a single `arrange_region` call showed
+ * up as six separate history rows — "moved 9 notes", "moved 8", "moved 17",
+ * "moved 15", "moved 15" — totalling more moves than the board had notes. The
+ * act animates over several seconds and nudges bystanders aside as it goes, so
+ * its writes straddle the coalescing window and one decision reads as six.
+ *
+ * The window was never the right unit. An act is.
+ */
+describe('one act, one line', () => {
+  const ACT = 4242;
+
+  it('folds writes from one act however far apart they land', () => {
+    recordFacts([{ at: 1000, by: AGENT, verb: 'moved', ids: ['n1'], detail: 'a', act: ACT }]);
+    recordFacts([{ at: 9000, by: AGENT, verb: 'moved', ids: ['n2'], detail: 'b', act: ACT }]);
+    const { events } = useJournalStore.getState();
+    expect(events).toHaveLength(1);
+    expect(events[0].ids).toEqual(['n1', 'n2']);
+  });
+
+  it('still keeps a different verb in the same act on its own line', () => {
+    recordFacts([{ at: 1000, by: AGENT, verb: 'moved', ids: ['n1'], detail: 'a', act: ACT }]);
+    recordFacts([{ at: 1100, by: AGENT, verb: 'grouped', ids: ['r1'], detail: 'Evidence', act: ACT }]);
+    expect(useJournalStore.getState().events).toHaveLength(2);
+  });
+
+  it('does not fold two separate acts together, however close', () => {
+    recordFacts([{ at: 1000, by: AGENT, verb: 'moved', ids: ['n1'], detail: 'a', act: ACT }]);
+    recordFacts([{ at: 1010, by: AGENT, verb: 'moved', ids: ['n2'], detail: 'b', act: ACT + 1 }]);
+    expect(useJournalStore.getState().events).toHaveLength(2);
+  });
+
+  it('still folds a human drag, which belongs to no act at all', () => {
+    recordFacts([{ at: 1000, by: HUMAN, verb: 'moved', ids: ['n1'], detail: 'a' }]);
+    recordFacts([{ at: 1200, by: HUMAN, verb: 'moved', ids: ['n1'], detail: 'a' }]);
+    expect(useJournalStore.getState().events).toHaveLength(1);
+  });
+});
+
 describe('describeEvent', () => {
   const name = (by: string | null) => (by === AGENT ? 'Cedar’s agent' : by === null ? null : 'Ochre');
 
@@ -227,5 +266,39 @@ describe('describeEvent', () => {
     recordFacts([{ at: 1000, by: null, verb: 'removed', ids: ['n1'], detail: 'gone' }]);
     const [event] = useJournalStore.getState().events;
     expect(describeEvent(event, null)).toBe('A note was removed — “gone”');
+  });
+
+  /**
+   * "3 notes was removed" was on screen for as long as the panel existed. A
+   * record nobody can read without wincing is a record people stop reading.
+   */
+  it('agrees the verb with the count when it does not know who acted', () => {
+    recordFacts([{ at: 1000, by: null, verb: 'removed', ids: ['n1', 'n2', 'n3'], detail: 'gone' }]);
+    const [event] = useJournalStore.getState().events;
+    expect(describeEvent(event, null)).toBe('3 notes were removed — “gone”');
+  });
+
+  /**
+   * Note text arrives already quoted often enough — it is an interview quote —
+   * and the panel was rendering ““I gave up at the workspace-name step.””.
+   */
+  /**
+   * Interview boards are full of quoted material, and the outer marks landed
+   * straight on top of the inner ones: “Support tickets tagged "onboarding" +2.4x”.
+   */
+  it('turns quote marks inside the detail into inner ones', () => {
+    recordFacts([
+      { at: 1000, by: AGENT, verb: 'moved', ids: ['n1'], detail: 'tickets tagged "onboarding" up' },
+    ]);
+    const [event] = useJournalStore.getState().events;
+    expect(describeEvent(event, name(event.by))).toBe(
+      'Cedar’s agent moved a note — “tickets tagged ‘onboarding’ up”',
+    );
+  });
+
+  it('does not quote a detail that is already quoted', () => {
+    recordFacts([{ at: 1000, by: AGENT, verb: 'moved', ids: ['n1'], detail: '"I gave up."' }]);
+    const [event] = useJournalStore.getState().events;
+    expect(describeEvent(event, name(event.by))).toBe('Cedar’s agent moved a note — “I gave up.”');
   });
 });
