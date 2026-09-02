@@ -17,6 +17,8 @@ import { setPeerCursors, setPeers, setRoomSource } from './peers';
 import { clearPendingShare, shareWasDisplaced } from '../data/pendingShare';
 import { openSession, roomFromLocation, type Session } from './channel';
 import { setConsentTransport, useConfirmStore } from '../agent/confirm';
+import { useIntentStore } from '../agent/intent';
+import { resetJournal } from '../state/journal';
 import { completeRemoteCall, recordRemoteCall, setCallTransport } from '../agent/webmcp';
 
 /**
@@ -167,6 +169,12 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     if (collections(doc).nodes.size > 0) {
       pullScene();
       live = true;
+      // Adopting the room's board is not a change to it. Diffed against the
+      // seed this tab was about to discard, it reads as every note on the board
+      // having just been written — an account of arriving, dressed up as an
+      // account of what happened. Nobody can be told what happened before they
+      // got here, so the record starts now.
+      resetJournal();
       // Adopting is the safe answer — nobody's work is overwritten by somebody
       // opening a link — but a board that came in a link is not thrown away for
       // it. It waits, and is offered.
@@ -242,6 +250,21 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     });
   };
 
+  /**
+   * What this tab's agent is about to do, out to the room before it does it.
+   *
+   * Separate from `pushGrip` because it changes on a different clock: a grip
+   * opens and closes with a hand, an announcement brackets a whole act. Sharing
+   * one subscription would publish each on the other's schedule.
+   */
+  const pushIntent = (): void => {
+    publish(awareness, { doing: useIntentStore.getState().mine });
+  };
+
+  const unwatchIntent = useIntentStore.subscribe((state, prev) => {
+    if (state.mine !== prev.mine) pushIntent();
+  });
+
   let pushTimer: ReturnType<typeof setTimeout> | undefined;
 
   const flushScene = (): void => {
@@ -303,6 +326,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     stopped = true;
     clearTimeout(grace);
     unsubscribe();
+    unwatchIntent();
     // Whatever was still coalescing belongs to the board, not to this tab.
     if (live) flushScene();
     doc.off('update', onDoc);

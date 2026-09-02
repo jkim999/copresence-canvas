@@ -9,6 +9,8 @@ import { ImportDialog } from './ui/ImportDialog';
 import { buildTools } from './agent/tools';
 import { exposeForConsole, instrument, registerTools } from './agent/webmcp';
 import { connectBoard } from './sync/bind';
+import { watchScene } from './state/journal';
+import { Happening } from './ui/Happening';
 export const App = () => {
   const [panelOpen, setPanelOpen] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
@@ -23,6 +25,11 @@ export const App = () => {
     exposeForConsole(tools);
     return unregister;
   }, [tools]);
+
+  // What happened, kept whoever caused it — this tab, its agent, or a peer
+  // whose edit arrived over the wire. Deliberately not inside the connection:
+  // a board with no peers still owes its human an account of its own history.
+  useEffect(watchScene, []);
 
   // Every tab on this URL is a peer. No room to name, no server to join: the
   // second tab you open is already a second person, with its own agent.
@@ -48,6 +55,8 @@ export const App = () => {
         <ReactFlowProvider>
           <Canvas />
         </ReactFlowProvider>
+
+        <Happening />
 
         {panelOpen ? (
           <Panel tools={tools} tab={tab} onTab={setTab} />

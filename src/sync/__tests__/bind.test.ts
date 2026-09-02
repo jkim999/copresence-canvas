@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { resetJournal, useJournalStore, watchScene } from '../../state/journal';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { connectBoard, reportCursor, type Connection } from '../bind';
@@ -444,5 +445,59 @@ describe('a board followed in from a link', () => {
 
     expect(store().scene.nodes.map((n) => n.id)).toEqual(['n_mine']);
     expect(usePendingShare.getState().scene).toBeNull();
+  });
+});
+
+describe('the history a tab starts with', () => {
+  it('does not report the board it adopted as work somebody just did', async () => {
+    const room = `journal-${Math.random()}`;
+    resetJournal();
+    const stopWatching = watchScene();
+
+    // A board already in the room, and deliberately not the one this tab holds.
+    const doc = new Y.Doc();
+    const awareness = new Awareness(doc);
+    const outside: Session = openSession(room, doc, awareness);
+    writeScene(doc, {
+      nodes: [
+        {
+          id: 'n_theirs',
+          text: 'already here before you arrived',
+          x: 0,
+          y: 0,
+          w: 176,
+          h: 84,
+          color: '#fff',
+          cluster: null,
+          kind: 'idea',
+          lastEditedBy: LOCAL_HUMAN,
+          editedAt: 1,
+          selected: false,
+        },
+      ],
+      edges: [],
+      annotations: [],
+      regions: [],
+    });
+    await settle(30);
+
+    const joining = connectBoard({ room, graceMs: 5 });
+    await settle(120);
+
+    // The board did arrive — this is not an empty room being called quiet.
+    expect(useSceneStore.getState().scene.nodes.some((n) => n.id === 'n_theirs')).toBe(true);
+    // Arriving is not an event. Diffed against the seed it was about to throw
+    // away, adoption otherwise reads as every note having just been written.
+    expect(useJournalStore.getState().events).toEqual([]);
+
+    // And the watcher really is live, so the assertion above meant something.
+    useSceneStore.getState().addNode({ text: 'after joining', x: 10, y: 10 }, me());
+    expect(useJournalStore.getState().events).toHaveLength(1);
+
+    stopWatching();
+    joining.stop();
+    outside.close();
+    awareness.destroy();
+    doc.destroy();
   });
 });

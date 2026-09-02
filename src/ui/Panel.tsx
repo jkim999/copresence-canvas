@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
+import { History } from './History';
+import { useJournalStore } from '../state/journal';
 import { useHostStore, type ToolDefinition } from '../agent/webmcp';
 import { RECIPES, RECIPE_GROUPS, type Recipe } from '../agent/recipes';
 import {
@@ -39,8 +41,8 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const connected = useHostStore((s) => s.connected);
   const calls = useHostStore((s) => s.calls);
-  const log = useSceneStore((s) => s.log);
   const pushLog = useSceneStore((s) => s.pushLog);
+  const changes = useJournalStore((s) => s.events.length);
   const logEnd = useRef<HTMLDivElement>(null);
 
   const shelves = useMemo(
@@ -54,7 +56,7 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
 
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [log.length, calls.length, tab]);
+  }, [changes, calls.length, tab]);
 
   const call = async (name: string, args: unknown) => {
     const tool = tools.find((t) => t.name === name);
@@ -208,19 +210,7 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
 
             <div className="group">
               <h3 className="group-title">Board history</h3>
-              {log.length === 0 ? (
-                <p className="empty">Every change either of you makes lands here.</p>
-              ) : (
-                log.map((entry) => (
-                  <div className={`log ${entry.by}`} key={entry.id}>
-                    <span className="who">
-                      <i />
-                    </span>
-                    <span className="body">{entry.text}</span>
-                    <span className="t">{time(entry.at)}</span>
-                  </div>
-                ))
-              )}
+              <History />
               <div ref={logEnd} />
             </div>
           </>
