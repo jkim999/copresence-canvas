@@ -6,6 +6,7 @@ import { Panel, TABS, type Tab } from './ui/Panel';
 import { TopBar } from './ui/TopBar';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ImportDialog } from './ui/ImportDialog';
+import { Invitation } from './ui/Invitation';
 import { buildTools } from './agent/tools';
 import { exposeForConsole, instrument, registerTools } from './agent/webmcp';
 import { connectBoard } from './sync/bind';
@@ -56,8 +57,13 @@ export const App = () => {
         onImport={() => setImportOpen(true)}
       />
       <div className="workspace">
+        {/* Inside the canvas, not beside it: the eye is on the board, what this
+            invites you to watch happens there, and anything centred over the
+            workspace is centred over the panel too. */}
         <ReactFlowProvider>
-          <Canvas />
+          <Canvas>
+            <Invitation tools={tools} />
+          </Canvas>
         </ReactFlowProvider>
 
         {panelOpen ? (

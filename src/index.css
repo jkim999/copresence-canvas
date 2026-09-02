@@ -828,7 +828,12 @@ button { font: inherit; cursor: pointer; color: inherit; }
 /* A history is a sequence, so it is drawn as one: a hairline runs the length of
    the column and every change sits on it, knocked out of the line so the mark
    reads as a station rather than a decoration lying on top of a rule. */
-.history { position: relative; }
+.history {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .history::before {
   content: '';
   position: absolute;
@@ -859,6 +864,48 @@ button { font: inherit; cursor: pointer; color: inherit; }
   background: var(--chrome-line-soft);
 }
 .log:last-of-type::after { display: none; }
+/* The handle on the line. Held back until the row is under a pointer or a
+   focus ring: a column of live buttons down a log turns a record you scan into
+   a control panel you have to be careful in, and the record is read far more
+   often than it is rewound. It stays present for keyboard and reduced-motion
+   users the moment anything inside the row has focus. */
+.log .rewind {
+  flex: none;
+  align-self: flex-start;
+  margin-top: -1px;
+  padding: 1px 7px;
+  border-radius: 100px;
+  border: 1px solid var(--chrome-line);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 140ms var(--ease-out),
+    color 140ms var(--ease-out),
+    border-color 140ms var(--ease-out),
+    transform 140ms var(--ease-out);
+}
+.log:hover .rewind,
+.log:focus-within .rewind,
+.log .rewind:focus-visible { opacity: 1; }
+.log .rewind:hover {
+  color: var(--human-lift);
+  border-color: var(--human-lift);
+}
+.log .rewind:active { transform: scale(0.96); }
+.log .rewind:focus-visible {
+  outline: 2px solid var(--human-lift);
+  outline-offset: 2px;
+}
+.log .rewind:disabled {
+  cursor: default;
+  opacity: 0.4;
+  transform: none;
+}
 .log .who {
   flex: none;
   width: 14px;
@@ -1334,11 +1381,56 @@ button { font: inherit; cursor: pointer; color: inherit; }
   70% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
 }
+/* The strip itself is inert — a warning you can see through and click past.
+   The one thing in it you are meant to reach has to opt back in, or the handle
+   is decoration. Found by pressing it in a live tab, where nothing happened. */
+.happening-row .stop { pointer-events: auto; }
+/* The handle the announcement above it promises. Teal because it acts on the
+   teal rings out on the board and nothing else — the one control on this page
+   that stops something already in motion, so it presses like one: instant
+   feedback on :active, no entrance of its own to sit through. */
+.happening-row .stop {
+  flex: none;
+  margin-left: 4px;
+  padding: 2px 9px;
+  border-radius: 100px;
+  border: 1px solid var(--agent-lift);
+  background: transparent;
+  color: var(--agent-lift);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    background-color 140ms var(--ease-out),
+    color 140ms var(--ease-out),
+    transform 140ms var(--ease-out);
+}
+.happening-row .stop:hover {
+  background: var(--agent-lift);
+  color: var(--chrome);
+}
+.happening-row .stop:active { transform: scale(0.96); }
+.happening-row .stop:focus-visible {
+  outline: 2px solid var(--agent-lift);
+  outline-offset: 2px;
+}
+/* Pressed and heard. The act puts the board down between notes rather than
+   dropping one mid-air, so there is a real gap here to account for. */
+.happening-row .stop:disabled {
+  cursor: default;
+  border-style: dashed;
+  opacity: 0.75;
+  transform: none;
+}
 /* A pulsing dot is decoration, and decoration is the first thing to go for
    anyone who has asked for less movement. */
 @media (prefers-reduced-motion: reduce) {
   .happening { transition: none; }
   .happening-row .pulse { animation: none; }
+  .happening-row .stop { transition: none; }
+  .log .rewind { transition: none; }
   .note.pending { animation: none; }
 }
 
@@ -1364,4 +1456,128 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .note.traced {
   box-shadow: 0 0 0 2px var(--board-ink), var(--lift-2);
   transform: translateY(-1px);
+}
+
+/* What a colleague is pointing at, as distinct from what they are holding.
+   Deliberately the quietest mark on a note: a hold refuses your hand and has to
+   be unmissable, a selection refuses nothing and is only ever an answer to
+   "which ones did they mean". A hairline in their colour, and their seat name
+   small enough to read only when you go looking for it. */
+.note.pointed {
+  outline: 1px solid var(--human);
+  outline-offset: 2px;
+}
+.note .pointer-tag {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--human);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+
+/* --- the first ten seconds ---------------------------------------------------
+   A visitor arriving alone sees a still board: their agent has not acted and
+   nobody else is here, so two of the three actors in the argument are missing.
+   This sits low over the canvas — clear of the top bar, clear of the notes it
+   is about to move — and leaves for good once the board has a history.
+
+   It enters, once, on @starting-style. Everything else on this page that moves
+   is reporting a fact about the board; this is the one element whose whole job
+   is to be noticed. */
+.invitation {
+  position: absolute;
+  left: 50%;
+  /* Clear of the keyboard hints along the bottom edge, which are the other
+     thing a first-time visitor is meant to read. */
+  bottom: 62px;
+  z-index: 40;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(440px, calc(100% - 48px));
+  padding: 16px 22px 14px;
+  border-radius: 16px;
+  /* Its own ground. `chrome-surface` carries the ink variables and nothing
+     else — every component on this page paints its own background, and a live
+     tab is what said so: bone text on bone paper, invisible. */
+  background: var(--chrome);
+  box-shadow: var(--lift-2);
+  text-align: center;
+  translate: -50% 0;
+  transition:
+    opacity 320ms var(--ease-out),
+    translate 320ms var(--ease-out);
+}
+@starting-style {
+  .invitation {
+    opacity: 0;
+    translate: -50% 10px;
+  }
+}
+.invitation-lede {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-0);
+}
+.invitation-go {
+  padding: 7px 18px;
+  border-radius: 100px;
+  border: 1px solid var(--agent-lift);
+  background: var(--agent-lift);
+  color: var(--chrome);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition:
+    transform 140ms var(--ease-out),
+    filter 140ms var(--ease-out);
+}
+.invitation-go:hover { filter: brightness(1.08); }
+.invitation-go:active { transform: scale(0.97); }
+.invitation-go:focus-visible {
+  outline: 2px solid var(--agent-lift);
+  outline-offset: 3px;
+}
+.invitation-aside {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.invitation-aside strong { color: var(--human-lift); font-weight: 600; }
+/* Present, reachable, and not competing with the thing it sits under. */
+.invitation-dismiss {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.invitation-dismiss:hover { color: var(--ink-1); }
+.invitation-dismiss:focus-visible {
+  outline: 2px solid var(--ink-2);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .invitation { transition: none; }
+  .invitation-go { transition: none; }
 }
