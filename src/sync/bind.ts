@@ -114,7 +114,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   const awareness = new Awareness(doc);
   const room = options.room ?? roomFromLocation(globalThis.location?.href ?? 'local');
   const session: Session = openSession(room, doc, awareness, {
-    onAsk: (id, req, _from, name) => useConfirmStore.getState().openRemote(id, req, name),
+    onAsk: (id, req, from, name) => useConfirmStore.getState().openRemote(id, req, name, from),
     onReply: (id, from, ok) => {
       // A reply addressed to a question this tab did not ask is the asker
       // telling the room the question is over.

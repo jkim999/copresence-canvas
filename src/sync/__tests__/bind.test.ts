@@ -501,3 +501,4 @@ describe('the history a tab starts with', () => {
     doc.destroy();
   });
 });
+

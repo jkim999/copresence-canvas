@@ -326,3 +326,51 @@ describe('catching a newcomer up', () => {
     expect(liveClients(a)).toContain(a.clientID);
   });
 });
+
+/**
+ * Does a seat that has left stay dead?
+ *
+ * `applyAwarenessUpdate` stamps everything it receives as heard-from *now*, so
+ * a peer relaying an old entry can refresh its clock on the far side. With two
+ * tabs each catching the other up, that is a loop: a seat nobody has heard from
+ * in an hour gets its life extended every few seconds, forever. It would show
+ * on screen as a room that never empties, and it would hold a consent vote it
+ * can never cast.
+ *
+ * `liveClients` is the filter that is supposed to prevent it. This is the test
+ * that says whether it actually does.
+ */
+describe('a seat that has left', () => {
+  const relay = (from: Awareness, to: Awareness, now: number): void => {
+    applyAwarenessUpdate(to, encodeAwarenessUpdate(from, liveClients(from, now)), 'relay');
+  };
+
+  it('is not brought back by two peers catching each other up', () => {
+    const [, alex] = seat();
+    const [, bo] = seat();
+    const [, cass] = seat();
+
+    publish(alex, { actor: ALEX, name: 'Alex' });
+    publish(bo, { actor: BO, name: 'Bo' });
+    publish(cass, { actor: humanId(), name: 'Cass' });
+
+    // Everyone meets. Cass is known to both.
+    let now = Date.now();
+    relay(cass, alex, now);
+    relay(cass, bo, now);
+    relay(bo, alex, now);
+    relay(alex, bo, now);
+    expect(peersOf(alex, now).map((p) => p.name).sort()).toEqual(['Bo', 'Cass']);
+
+    // Cass closes the tab and is never heard from again. Alex and Bo keep
+    // gossiping past the TTL, relaying whatever they still hold.
+    for (let i = 0; i <= PRESENCE_TTL_MS * 2; i += PRESENCE_TTL_MS / 6) {
+      now = Date.now() + i;
+      relay(alex, bo, now);
+      relay(bo, alex, now);
+    }
+
+    const left = peersOf(alex, now).map((p) => p.name);
+    expect(left).not.toContain('Cass');
+  });
+});

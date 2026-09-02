@@ -52,3 +52,41 @@ describe('the peer list the UI renders from', () => {
     expect(after.at).toBeGreaterThanOrEqual(before.at);
   });
 });
+
+/**
+ * The header names one peer and counts the rest ("Ochre +2"). It reads
+ * `peers[0]`, and the list arrived in awareness iteration order — which is not
+ * stable. So the name in the chip changed on its own: an agent driving two
+ * tabs watched it cycle Juniper → Ochre → Juniper over three minutes with
+ * nobody arriving or leaving, and reasonably reported it as the interface
+ * naming a seat that did not exist.
+ *
+ * The order was never meaningful, so it is made deterministic rather than
+ * having the header pick a "first" out of an arbitrary sequence.
+ */
+describe('the order the room is listed in', () => {
+  const three = (): Presence[] => [
+    peer({ actor: 'h_c', name: 'Cedar' }),
+    peer({ actor: 'h_a', name: 'Ash' }),
+    peer({ actor: 'h_b', name: 'Birch' }),
+  ];
+
+  it('does not depend on the order the wire happened to deliver', () => {
+    setPeers(three());
+    const first = usePeerStore.getState().peers.map((p) => p.actor);
+    setPeers([...three()].reverse());
+    expect(usePeerStore.getState().peers.map((p) => p.actor)).toEqual(first);
+  });
+
+  it('settles somewhere a person can predict', () => {
+    setPeers(three());
+    expect(usePeerStore.getState().peers.map((p) => p.name)).toEqual(['Ash', 'Birch', 'Cedar']);
+  });
+
+  it('treats a reordering as no change at all, so nothing re-renders', () => {
+    setPeers(three());
+    const before = usePeerStore.getState().peers;
+    setPeers([...three()].reverse());
+    expect(usePeerStore.getState().peers).toBe(before);
+  });
+});

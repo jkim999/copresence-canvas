@@ -69,7 +69,20 @@ export const roomView = (): RoomView => {
   return { peers, heardAgoMs: Date.now() - at };
 };
 
-export const setPeers = (peers: Presence[]): void => {
+/**
+ * A stable order for a list that arrives in no order at all.
+ *
+ * The header names the first peer and counts the rest ("Ochre +2"), and this
+ * list came in awareness iteration order — so whenever anybody joined or left,
+ * the name in the chip could change to a different person for no reason the
+ * viewer could see. Sorting by actor rather than by seat name because the name
+ * is derived and can be renumbered; the id cannot.
+ */
+const inOrder = (peers: Presence[]): Presence[] =>
+  [...peers].sort((a, b) => (a.actor < b.actor ? -1 : a.actor > b.actor ? 1 : 0));
+
+export const setPeers = (incoming: Presence[]): void => {
+  const peers = inOrder(incoming);
   const current = usePeerStore.getState().peers;
   // The timestamp advances even when the membership does not: hearing the same
   // room again is exactly the evidence that it is still there.
