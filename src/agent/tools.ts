@@ -1,8 +1,9 @@
 import { useSceneStore } from '../state/sceneStore';
-import { isAgent, kindOf, myAgent } from '../state/actors';
+import { disambiguate, isAgent, kindOf, me, myAgent, seatName } from '../state/actors';
 import { LAYOUT_KINDS, type ActorId, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
 import { boardContext } from './boardContext';
+import { roomView } from '../sync/peers';
 import {
   addNotes,
   annotateScene,
@@ -35,9 +36,38 @@ const asLayout = (value: unknown): LayoutKind => {
  * the token story real and the agent reliable: it reads ~30 notes as a few
  * hundred tokens of text it can reason about by id.
  */
+/**
+ * Who to credit for a piece of work, by seat.
+ *
+ * `lastEditedBy` alone answers "person or machine", which is the only question
+ * a single-agent board ever asked. On a shared board it is not enough: two
+ * agents organising one canvas both reported that every node came back marked
+ * `agent`, so neither could tell its own work from the other's — one resorted
+ * to diffing whole scene snapshots by hand.
+ *
+ * A tab's human and its agent are one seat. Reporting the person's work as some
+ * other participant's would have the agent deferring to its own human.
+ */
+const credit = () => {
+  const { scene } = useSceneStore.getState();
+  const mine = new Set([me(), myAgent()]);
+
+  const everyone = new Set<ActorId>([...mine, ...roomView().peers.map((p) => p.actor)]);
+  for (const n of scene.nodes) everyone.add(n.lastEditedBy);
+  for (const e of scene.edges) everyone.add(e.lastEditedBy);
+
+  const label = disambiguate([...everyone]);
+  return (by: ActorId) => ({
+    lastEditedBy: kindOf(by),
+    seat: label[by] ?? seatName(by),
+    mine: mine.has(by),
+  });
+};
+
 const readScene = () => {
   const { scene } = useSceneStore.getState();
   const bounds = boundsOf(scene.nodes);
+  const who = credit();
   return {
     nodes: scene.nodes.map((n) => ({
       id: n.id,
@@ -48,14 +78,14 @@ const readScene = () => {
       h: n.h,
       kind: n.kind,
       cluster: n.cluster,
-      lastEditedBy: kindOf(n.lastEditedBy),
+      ...who(n.lastEditedBy),
     })),
     edges: scene.edges.map((e) => ({
       id: e.id,
       from: e.from,
       to: e.to,
       label: e.label,
-      lastEditedBy: kindOf(e.lastEditedBy),
+      ...who(e.lastEditedBy),
     })),
     regions: scene.regions.map((r) => ({
       id: r.id,
@@ -87,7 +117,11 @@ export const buildTools = (): ToolDefinition[] => [
     description:
       'Read the live canvas: every sticky note with its id and text, plus edges, regions, ' +
       'annotations and overall bounds, as structured JSON. Call this first — you cannot act ' +
-      'on the board until you have seen it. This state lives only in the page; no server has it.',
+      'on the board until you have seen it. This state lives only in the page; no server has it. ' +
+      'Every note and edge carries `seat` (which participant last touched it) and `mine` (true ' +
+      'when it was you or the human you sit beside), so you can tell your own work from a ' +
+      'peer\'s without diffing snapshots. Re-read this after any pause: other people and their ' +
+      'agents are editing the same board and nothing notifies you when they do.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, title: 'Read the canvas' },
     execute: async () => readScene(),
