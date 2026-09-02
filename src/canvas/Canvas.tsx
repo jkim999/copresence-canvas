@@ -25,7 +25,10 @@ import { PeerCursors } from './PeerCursors';
 import { reportCursor } from '../sync/bind';
 import { useTick } from './useTick';
 import { useCursorStore } from '../agent/motion';
+import { pendingFrom, useHeldStore, type PendingKind } from '../agent/announcements';
+import { useSpotlightStore } from '../ui/spotlight';
 import { Ledger } from '../ui/Ledger';
+import { Happening } from '../ui/Happening';
 import { IconRunning } from '../ui/icons';
 
 const DOING: Record<string, string> = {
@@ -42,7 +45,13 @@ const CURSOR_SAMPLE_MS = 45;
 
 type RFNode = Node<NoteData>;
 
-const buildNode = (n: SceneNode, fresh: boolean, previous?: RFNode): RFNode => ({
+const buildNode = (
+  n: SceneNode,
+  fresh: boolean,
+  pending: PendingKind | null,
+  traced: boolean,
+  previous?: RFNode,
+): RFNode => ({
   // Spreading the previous node preserves React Flow's own internals — most
   // importantly `measured`, without which it renders the node invisible.
   ...(previous ?? { id: n.id, type: 'note' as const }),
@@ -51,7 +60,7 @@ const buildNode = (n: SceneNode, fresh: boolean, previous?: RFNode): RFNode => (
   position: { x: n.x, y: n.y },
   selected: n.selected,
   style: { width: n.w, height: n.h },
-  data: { node: n, fresh },
+  data: { node: n, fresh, pending, traced },
 });
 
 export const Canvas = () => {
@@ -69,6 +78,15 @@ export const Canvas = () => {
   const cursorMode = useCursorStore((s) => s.mode);
 
   const epoch = useSceneStore((s) => s.epoch);
+
+  // What has been announced but has not happened yet. The strip above the board
+  // says it in a sentence; this is the same claim laid on the notes themselves.
+  const held = useHeldStore((s) => s.held);
+  const pending = useMemo(() => pendingFrom(held), [held]);
+
+  // Which notes the history row under the reader's pointer is about.
+  const litIds = useSpotlightStore((s) => s.ids);
+  const traced = useMemo(() => new Set(litIds), [litIds]);
 
   const { screenToFlowPosition, fitView } = useReactFlow();
   const dragged = useRef<Set<string>>(new Set());
@@ -92,7 +110,7 @@ export const Canvas = () => {
   // React Flow owns its node list so that measurements survive; the scene store
   // remains the source of truth and is mirrored into it on every change.
   const [rfNodes, setRfNodes] = useState<RFNode[]>(() =>
-    scene.nodes.map((n) => buildNode(n, false)),
+    scene.nodes.map((n) => buildNode(n, false, null, false)),
   );
 
   useEffect(() => {
@@ -101,17 +119,21 @@ export const Canvas = () => {
       return scene.nodes.map((n) => {
         const prev = byId.get(n.id);
         const fresh = isFresh(n);
+        const claim = pending.get(n.id) ?? null;
+        const lit = traced.has(n.id);
         const unchanged =
           prev &&
           prev.position.x === n.x &&
           prev.position.y === n.y &&
           prev.selected === n.selected &&
           (prev.data as NoteData).node === n &&
-          (prev.data as NoteData).fresh === fresh;
-        return unchanged ? prev : buildNode(n, fresh, prev);
+          (prev.data as NoteData).fresh === fresh &&
+          (prev.data as NoteData).pending === claim &&
+          (prev.data as NoteData).traced === lit;
+        return unchanged ? prev : buildNode(n, fresh, claim, lit, prev);
       });
     });
-  }, [scene.nodes, isFresh, now]);
+  }, [scene.nodes, isFresh, now, pending, traced]);
 
   const edges: Edge[] = useMemo(
     () =>
@@ -257,6 +279,7 @@ export const Canvas = () => {
         </div>
       )}
 
+      <Happening />
       <Ledger />
 
       <div className="hints">

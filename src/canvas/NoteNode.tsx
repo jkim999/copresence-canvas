@@ -3,16 +3,21 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useSceneStore } from '../state/sceneStore';
 import { me } from '../state/actors';
 import type { SceneNode } from '../state/types';
+import type { PendingKind } from '../agent/announcements';
 
 export const PROVENANCE_MS = 7000;
 
 export interface NoteData extends Record<string, unknown> {
   node: SceneNode;
   fresh: boolean;
+  /** Named in an announcement that has not run yet, so it is about to change. */
+  pending: PendingKind | null;
+  /** Named by the history row the reader is pointing at right now. */
+  traced: boolean;
 }
 
 const NoteNodeInner = ({ data, selected }: NodeProps) => {
-  const { node, fresh } = data as unknown as NoteData;
+  const { node, fresh, pending, traced } = data as unknown as NoteData;
   const setNodeText = useSceneStore((s) => s.setNodeText);
   const pushLog = useSceneStore((s) => s.pushLog);
   const [editing, setEditing] = useState(false);
@@ -43,6 +48,8 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
     node.kind === 'summary' ? 'summary' : '',
     selected ? 'selected' : '',
     fresh ? 'agent-fresh' : '',
+    pending ? `pending pending-${pending}` : '',
+    traced ? 'traced' : '',
   ]
     .filter(Boolean)
     .join(' ');

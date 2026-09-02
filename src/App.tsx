@@ -10,7 +10,7 @@ import { buildTools } from './agent/tools';
 import { exposeForConsole, instrument, registerTools } from './agent/webmcp';
 import { connectBoard } from './sync/bind';
 import { watchScene } from './state/journal';
-import { Happening } from './ui/Happening';
+import { watchAnnouncements } from './agent/announcements';
 export const App = () => {
   const [panelOpen, setPanelOpen] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
@@ -30,6 +30,10 @@ export const App = () => {
   // whose edit arrived over the wire. Deliberately not inside the connection:
   // a board with no peers still owes its human an account of its own history.
   useEffect(watchScene, []);
+
+  // What is about to happen, held on screen long enough to actually be seen —
+  // one list, so the strip's count and the rings on the notes cannot disagree.
+  useEffect(watchAnnouncements, []);
 
   // Every tab on this URL is a peer. No room to name, no server to join: the
   // second tab you open is already a second person, with its own agent.
@@ -55,8 +59,6 @@ export const App = () => {
         <ReactFlowProvider>
           <Canvas />
         </ReactFlowProvider>
-
-        <Happening />
 
         {panelOpen ? (
           <Panel tools={tools} tab={tab} onTab={setTab} />
