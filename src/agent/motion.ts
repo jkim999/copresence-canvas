@@ -143,6 +143,21 @@ const step = (now: number): void => {
   if (cursorTween && !cursorTween.frame(now)) cursorTween = null;
 };
 
+/**
+ * Whether anyone can actually see the animation we are about to pace.
+ *
+ * Every tween here exists so a human can watch the agent work and interrupt it.
+ * A browser suspends animation frames and throttles timers in a hidden tab, so
+ * in that tab the pacing is not merely pointless — it is destructive: a call
+ * built from a dozen sequential tweens stretches from a second to minutes, and
+ * a caller reasonably concludes it has hung and retries, duplicating the work.
+ *
+ * So when nobody is watching, the change simply lands. Same outcome, same
+ * refusals, no theatre for an empty room.
+ */
+const unwatched = (): boolean =>
+  typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
 const tick = (now: number): void => {
   step(now);
   frameHandle = hasWork() ? requestAnimationFrame(tick) : 0;
@@ -200,6 +215,16 @@ export const tweenNodeTo = (
     existing.resolve('dropped');
   }
 
+  if (unwatched()) {
+    // The refusal still applies — it is the product, not a side effect of the
+    // animation. Only the pacing is dropped.
+    const agent = myAgent();
+    const holder = useSceneStore.getState().grip[id];
+    if (holder !== undefined && holder !== agent) return Promise.resolve('yielded');
+    useSceneStore.getState().moveNode(id, toX, toY, agent);
+    return Promise.resolve('landed');
+  }
+
   return new Promise<TweenOutcome>((resolve) => {
     nodeTweens.set(id, {
       id,
@@ -231,6 +256,13 @@ export const moveCursorTo = (
 
   cursor.set({ visible: true, mode, x: fromX, y: fromY });
 
+  if (unwatched()) {
+    cursorTween?.settle();
+    cursorTween = null;
+    cursor.set({ x: toX, y: toY });
+    return Promise.resolve();
+  }
+
   return new Promise<void>((resolve) => {
     // Whatever was in the slot is over, and the call awaiting it has to hear so.
     cursorTween?.settle();
@@ -254,9 +286,11 @@ export const moveCursorTo = (
 };
 
 export const wait = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+  unwatched()
+    ? Promise.resolve()
+    : new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      });
 
 export const setCursorMode = (mode: CursorMode): void => {
   useCursorStore.getState().set({ mode });

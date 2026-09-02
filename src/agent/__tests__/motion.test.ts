@@ -112,3 +112,86 @@ describe('a note the agent is carrying', () => {
     expect(store().heldBy(target.id)).toBe(LOCAL_HUMAN);
   });
 });
+
+/**
+ * A browser suspends animation frames and throttles timers in a tab nobody is
+ * looking at. Every one of these tweens then waits on a clock that has all but
+ * stopped, and a tool call built from a dozen of them — cursor move, write,
+ * pause, repeat — stretched to minutes. Two agents driving background tabs both
+ * read that as a hang, invented a cause (one blamed a mutex, one blamed a
+ * server that does not exist), and retried, duplicating their own work.
+ *
+ * The animation is an affordance for a human who is watching the agent work.
+ * In a hidden tab there is no such human, so there is nothing to pace for: the
+ * change lands at once and the call returns immediately.
+ */
+describe('a tab nobody is looking at', () => {
+  const hide = () => vi.stubGlobal('document', { visibilityState: 'hidden' });
+
+  it('lands a note without waiting for a frame that will never come', async () => {
+    hide();
+    // No rAF is pumped at all: if this resolves, it resolved without one.
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+
+    const id = store().scene.nodes[0].id;
+    const began = performance.now();
+    await expect(tweenNodeTo(id, 400, 250)).resolves.toBe('landed');
+    // The assertion that discriminates. Settling eventually proves nothing —
+    // the watchdog already did that, in the full 460ms the animation would
+    // have taken. What is being fixed is the waiting itself.
+    expect(performance.now() - began).toBeLessThan(50);
+
+    const node = store().getNode(id)!;
+    expect([node.x, node.y]).toEqual([400, 250]);
+  });
+
+  it('leaves the note exactly where it was asked to go, not part way', async () => {
+    hide();
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+
+    const id = store().scene.nodes[1].id;
+    await tweenNodeTo(id, -120, 96);
+
+    expect(store().getNode(id)!.x).toBe(-120);
+  });
+
+  it('settles the cursor rather than stranding the call that awaits it', async () => {
+    hide();
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+
+    const began = performance.now();
+    await expect(moveCursorTo(300, 300)).resolves.toBeUndefined();
+    expect(performance.now() - began).toBeLessThan(50);
+    const cursor = useCursorStore.getState();
+    expect([cursor.x, cursor.y]).toEqual([300, 300]);
+  });
+
+  it('still yields the note to a human who has hold of it', async () => {
+    // Skipping the animation must not skip the refusal. The note is held, so
+    // the agent gives it back — instantly, but it still gives it back.
+    hide();
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+
+    const id = store().scene.nodes[2].id;
+    store().setGrip([id], LOCAL_HUMAN);
+
+    await expect(tweenNodeTo(id, 900, 900)).resolves.toBe('yielded');
+    expect(store().getNode(id)!.x).not.toBe(900);
+  });
+
+  it('animates as before once somebody is watching again', async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible' });
+    const id = store().scene.nodes[0].id;
+    const from = store().getNode(id)!.x;
+
+    const settled = tweenNodeTo(id, from + 500, 0);
+    // Mid-flight it is somewhere between the two, which is the whole point of
+    // pacing it for a human to see and interrupt.
+    await new Promise((r) => setTimeout(r, 40));
+    const mid = store().getNode(id)!.x;
+    expect(mid).not.toBe(from + 500);
+
+    await settled;
+    expect(store().getNode(id)!.x).toBe(from + 500);
+  });
+});
