@@ -1,5 +1,5 @@
 import type { Awareness } from 'y-protocols/awareness';
-import type { ActorId } from '../state/types';
+import type { ActorId, Intent } from '../state/types';
 import { LOCAL_HUMAN, isAgent } from '../state/actors';
 
 /**
@@ -31,6 +31,9 @@ import { LOCAL_HUMAN, isAgent } from '../state/actors';
 export const MAX_IDS = 300;
 const MAX_NAME = 64;
 const MAX_ACTOR = 64;
+/** A peer's announcement is drawn on *this* person's screen, so it is clamped. */
+const MAX_VERB = 64;
+const MAX_WHAT = 120;
 
 export interface Cursor {
   x: number;
@@ -54,6 +57,14 @@ export interface Presence {
   agentHolding: string[];
   selected: string[];
   cursor: Cursor | null;
+  /**
+   * What this seat's agent is about to do, while it is doing it.
+   *
+   * Ephemeral on purpose. A tab that crashes mid-arrange stops heartbeating and
+   * its announcement dies with it, which is the only way a promise about the
+   * next two seconds can be safely believed by anybody else.
+   */
+  doing: Intent | null;
 }
 
 /** Every hand in one peer state, each under the actor that owns it. */
@@ -78,6 +89,24 @@ const ids = (v: unknown): string[] => {
     if (out.length === MAX_IDS) break;
   }
   return out;
+};
+
+/**
+ * A peer's announcement, validated like any other external input. A missing or
+ * malformed one reads as "not saying", never as a fabricated act: an invented
+ * intent would have a peer's agent politely working around nothing.
+ */
+const intentOf = (v: unknown): Intent | null => {
+  if (!v || typeof v !== 'object') return null;
+  const { verb, what, ids: raw, at } = v as Record<string, unknown>;
+  if (typeof verb !== 'string' || verb.length === 0) return null;
+  if (typeof what !== 'string') return null;
+  return {
+    verb: verb.slice(0, MAX_VERB),
+    what: what.slice(0, MAX_WHAT),
+    ids: ids(raw),
+    at: typeof at === 'number' && Number.isFinite(at) ? at : 0,
+  };
 };
 
 const cursorOf = (v: unknown): Cursor | null => {
@@ -105,6 +134,7 @@ export const readPresence = (raw: unknown): Presence | null => {
     agentHolding: ids(r.agentHolding),
     selected: ids(r.selected),
     cursor: cursorOf(r.cursor),
+    doing: intentOf(r.doing),
   };
 };
 
@@ -269,6 +299,7 @@ const BLANK: Presence = {
   agentHolding: [],
   selected: [],
   cursor: null,
+  doing: null,
 };
 
 /**

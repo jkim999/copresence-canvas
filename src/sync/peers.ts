@@ -20,9 +20,21 @@ export const usePeerStore = create<{ peers: Presence[]; at: number }>(() => ({
   at: Date.now(),
 }));
 
-/** A cheap identity of the peer list, so a heartbeat does not re-render the page. */
+/**
+ * A cheap identity of the peer list, so a heartbeat does not re-render the page.
+ *
+ * Membership is not enough on its own. An announcement — what a seat's agent is
+ * about to do — changes without anybody arriving or leaving, and a signature
+ * blind to it left the strip that draws those announcements permanently empty
+ * while `get_board_context` reported them correctly: the agents could see each
+ * other's intentions and the humans could not. Announcements change twice per
+ * act rather than per heartbeat, so this stays cheap.
+ */
 const signature = (peers: Presence[]): string =>
-  peers.map((p) => `${p.actor}:${p.name}`).sort().join('|');
+  peers
+    .map((p) => `${p.actor}:${p.name}:${p.doing ? `${p.doing.verb} ${p.doing.what}` : ''}`)
+    .sort()
+    .join('|');
 
 /**
  * Who is in the room *now*, as opposed to when an event last fired.

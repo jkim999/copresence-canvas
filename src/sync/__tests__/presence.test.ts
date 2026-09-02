@@ -62,6 +62,7 @@ describe('reading a peer state off the wire', () => {
       agentHolding: ['n_1'],
       selected: [],
       cursor: { x: 1, y: 2 },
+      doing: null,
     };
 
     expect(readPresence(state)).toEqual(state);

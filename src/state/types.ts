@@ -95,6 +95,24 @@ export interface HistoryEntry {
   scene: Scene;
 }
 
+/**
+ * An act announced before it is carried out.
+ *
+ * Lives here rather than beside the agent because it is shared vocabulary: the
+ * agent declares one, presence carries it over the wire, and the canvas draws
+ * it. Kept small on purpose — it crosses the wire on every heartbeat.
+ */
+export interface Intent {
+  /** Present participle, so it reads as a sentence: "arranging", "linking". */
+  verb: string;
+  /** The object of that verb: "8 notes into a timeline". */
+  what: string;
+  /** What it expects to touch, so a reader can see the target, not just the act. */
+  ids: string[];
+  /** When it was declared, so a reader can tell a fresh claim from a stuck one. */
+  at: number;
+}
+
 export interface LogEntry {
   id: string;
   at: number;
