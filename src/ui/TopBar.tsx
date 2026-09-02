@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSceneStore } from '../state/sceneStore';
 import { replaceBoard } from '../state/boardChange';
 import { clearPendingShare, usePendingShare } from '../data/pendingShare';
 import { isAgent, me } from '../state/actors';
 import { useHostStore } from '../agent/webmcp';
 import { usePeerStore } from '../sync/peers';
+import { crediting } from '../agent/credit';
 import { toMarkdown } from '../data/exportMarkdown';
 import { shareUrlFor } from '../data/shareLink';
 import {
@@ -97,6 +98,11 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
   const [copied, flashCopied] = useFlash();
   const [shared, flashShared] = useFlash();
   const peers = usePeerStore((s) => s.peers);
+  // Resolved, not taken from the wire: the chip named a seat ("Ochre") that
+  // appeared nowhere else on screen, because each tab mints its own name before
+  // it knows who else is in the room.
+  const credit = useMemo(() => crediting(), [peers]);
+  const seatOf = (actor: string) => credit(actor).seat;
 
   const hasAgentAction = history.some((h) => isAgent(h.by));
 
@@ -169,12 +175,12 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
           className="status here"
           title={
             peers.length === 1
-              ? `${peers[0].name} is on this board, with an agent of their own.`
-              : `${peers.map((p) => p.name).join(', ')} are on this board, each with an agent of their own.`
+              ? `${seatOf(peers[0].actor)} is on this board, with an agent of their own.`
+              : `${peers.map((p) => seatOf(p.actor)).join(', ')} are on this board, each with an agent of their own.`
           }
         >
           <span className="led" />
-          <span className="long">{peers[0].name}</span>
+          <span className="long">{seatOf(peers[0].actor)}</span>
           {peers.length > 1 ? <span className="count">+{peers.length - 1}</span> : null}
         </span>
       ) : null}

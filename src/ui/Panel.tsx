@@ -94,6 +94,7 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
               <Icon size={14} />
               {label}
               {id === 'tools' && <span className="n">{tools.length}</span>}
+              {id === 'activity' && changes > 0 && <span className="n">{changes}</span>}
             </button>
           ))}
         </div>
@@ -209,7 +210,10 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
             </div>
 
             <div className="group">
-              <h3 className="group-title">Board history</h3>
+              <h3 className="group-title">
+                Board history
+                {changes > 0 && <span className="hint">point to locate</span>}
+              </h3>
               <History />
               <div ref={logEnd} />
             </div>

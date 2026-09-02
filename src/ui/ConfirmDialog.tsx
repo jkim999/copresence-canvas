@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useConfirmStore } from '../agent/confirm';
+import { usePeerStore } from '../sync/peers';
+import { crediting } from '../agent/credit';
 
 /**
  * The single turn-taking beat in an otherwise simultaneous product. WebMCP has
@@ -11,10 +13,26 @@ import { useConfirmStore } from '../agent/confirm';
  * them and any one refusal is enough. So the dialog has to say whose agent is
  * asking — otherwise a modal appears on your screen about a board you were not
  * touching, with no account of where it came from.
+ *
+ * And it has to be the *same* name. The wire carries the seat name the asking
+ * tab minted for itself, which knows nothing about the room it landed in: this
+ * dialog once said "Pewter's agent is asking" while the strip four inches above
+ * it said "Pewter 2's agent" about that very act. Resolving the actor here puts
+ * one seat under one name across the dialog, the strip, the ledger, the history
+ * and a refusal.
  */
 export const ConfirmDialog = () => {
   const pending = useConfirmStore((s) => s.pending);
   const answer = useConfirmStore((s) => s.answer);
+  const peers = usePeerStore((s) => s.peers);
+
+  const actor = pending?.askerActor ?? null;
+  const asker = useMemo(() => {
+    if (actor === null) return pending?.asker ?? null;
+    // Passed in explicitly: an agent can outlive the presence entry that named
+    // its seat, and a question from a tab that just left still has to be signed.
+    return crediting([actor])(actor).seat;
+  }, [actor, pending?.asker, peers]);
 
   useEffect(() => {
     if (!pending) return;
@@ -37,9 +55,9 @@ export const ConfirmDialog = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="gate-title">{pending.title}</h2>
-        {pending.asker !== null && (
+        {asker !== null && (
           <p className="asker">
-            <strong>{pending.asker}</strong>&rsquo;s agent is asking. It needs everyone here to
+            <strong>{asker}</strong>&rsquo;s agent is asking. It needs everyone here to
             agree, and your refusal alone is enough to stop it.
           </p>
         )}

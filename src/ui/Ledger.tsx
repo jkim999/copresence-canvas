@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useHostStore } from '../agent/webmcp';
 import { formatArgs, summarizeResult } from '../agent/callFormat';
+import { crediting } from '../agent/credit';
+import { usePeerStore } from '../sync/peers';
 
 const VISIBLE = 3;
 
@@ -14,13 +16,24 @@ const VISIBLE = 3;
  * Calls from the other people on the board appear here too, under their seat
  * name. Without that, two agents working one board looks exactly like one.
  *
+ * That name is resolved from the actor, never taken from the wire. The wire
+ * carries the name the calling tab minted for itself before it knew the room,
+ * so with two seats whose names collide the ledger showed a bare "JUNIPER"
+ * while every other surface said "Juniper 1" and "Juniper 2" — leaving the one
+ * panel that shows raw agent activity unable to say which agent.
+ *
  * Only the last few rows are shown, because the ledger sits over the canvas and
  * the board is the thing being looked at. The rest are not thrown away: the
  * count is a button, and the evidence a viewer cannot reach is not evidence.
  */
 export const Ledger = () => {
   const calls = useHostStore((s) => s.calls);
+  const peers = usePeerStore((s) => s.peers);
   const [open, setOpen] = useState(false);
+  const credit = useMemo(
+    () => crediting(calls.flatMap((c) => (c.by ? [c.by.actor] : []))),
+    [peers, calls],
+  );
   if (calls.length === 0) return null;
 
   const recent = open ? calls : calls.slice(-VISIBLE);
@@ -52,7 +65,7 @@ export const Ledger = () => {
         return (
           <div className={`ledger-row ${state}`} key={c.id}>
             <code className="sig">
-              {c.by && <span className="whose">{c.by.name}</span>}
+              {c.by && <span className="whose">{credit(c.by.actor).seat}</span>}
               <b>{c.tool}</b>
               <span className="paren">(</span>
               {c.sig ?? formatArgs(c.args)}

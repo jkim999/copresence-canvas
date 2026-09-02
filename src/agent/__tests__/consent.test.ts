@@ -151,6 +151,65 @@ describe('being asked by somebody else', () => {
     expect(replied).toEqual([{ id: 'ask_1', ok: false }]);
   });
 
+  /**
+   * The dialog said "Pewter's agent is asking" while the strip above the board
+   * said "Pewter 2's agent" about the same act — because the wire carries a raw
+   * seat name and only the panel numbers colliding seats apart. One seat must
+   * answer to one name everywhere, so the actor comes along with the question
+   * and the dialog resolves the name the way every other surface does.
+   */
+  it('carries who asked, not only what they were called at the time', () => {
+    store().openRemote('ask_1', REQUEST, 'Cedar', 'h_cedar');
+    expect(store().pending).toMatchObject({ asker: 'Cedar', askerActor: 'h_cedar' });
+  });
+
+  it('still shows a question from a tab too old to say who it is', () => {
+    store().openRemote('ask_1', REQUEST, 'Cedar');
+    expect(store().pending).toMatchObject({ asker: 'Cedar', askerActor: null });
+  });
+
+  /**
+   * Two agents proposed a whole-board change at nearly the same moment. The
+   * second question overwrote the first on screen, and the first was answered
+   * by nobody — its asker was told "nobody answered in time" while this tab's
+   * human never saw it. Under a rule where any one refusal is enough, a
+   * question this tab silently dropped is a vote it was never allowed to cast.
+   */
+  it('does not let a second question wipe out one still on screen', () => {
+    store().openRemote('ask_1', REQUEST, 'Cedar', 'h_cedar');
+    store().openRemote('ask_2', REQUEST, 'Rowan', 'h_rowan');
+
+    expect(store().pending?.id).toBe('ask_1');
+
+    answerHere(false);
+
+    // The queued one takes the screen the moment the first is answered.
+    expect(store().pending?.id).toBe('ask_2');
+    expect(replied).toEqual([{ id: 'ask_1', ok: false }]);
+  });
+
+  it('answers every queued question, so no asker is left waiting on a vote', () => {
+    store().openRemote('ask_1', REQUEST, 'Cedar', 'h_cedar');
+    store().openRemote('ask_2', REQUEST, 'Rowan', 'h_rowan');
+
+    answerHere(false);
+    answerHere(true);
+
+    expect(replied).toEqual([{ id: 'ask_1', ok: false }, { id: 'ask_2', ok: true }]);
+    expect(store().pending).toBeNull();
+  });
+
+  it('drops a queued question that its asker withdraws before it is reached', () => {
+    store().openRemote('ask_1', REQUEST, 'Cedar', 'h_cedar');
+    store().openRemote('ask_2', REQUEST, 'Rowan', 'h_rowan');
+
+    store().closeRemote('ask_2');
+    answerHere(false);
+
+    expect(store().pending).toBeNull();
+    expect(replied).toEqual([{ id: 'ask_1', ok: false }]);
+  });
+
   it('does not answer on the asker\'s behalf when it withdraws the question', () => {
     store().openRemote('ask_1', REQUEST, 'Cedar');
 

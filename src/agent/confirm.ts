@@ -56,6 +56,15 @@ const NO_ANSWER_MS = 10_000;
 let transport: ConsentTransport | null = null;
 export const setConsentTransport = (t: ConsentTransport | null): void => {
   transport = t;
+  // A question from another tab belongs to the room it was asked in. Changing
+  // or losing the transport means this tab is no longer in that room, so a
+  // queued question can never be answered usefully and one on screen is now
+  // addressed to nobody.
+  queued = [];
+  const { pending } = useConfirmStore.getState();
+  if (pending !== null && pending.asker !== null) {
+    useConfirmStore.setState({ pending: null, resolve: null });
+  }
 };
 
 /** The other people on this board right now, if this tab is connected at all. */
@@ -71,10 +80,27 @@ interface Outstanding {
 
 let outstanding: Outstanding | null = null;
 
+/**
+ * Questions from other tabs that arrived while one was already on screen.
+ *
+ * Two agents proposing a whole-board change at nearly the same moment used to
+ * overwrite each other here, and the question that lost was never answered by
+ * this tab at all — its asker waited out the clock and was told nobody replied.
+ * Under any-one-veto that is a vote this tab was silently prevented from
+ * casting, so they queue instead: one at a time, every one of them answered.
+ */
+let queued: PendingDialog[] = [];
+
 interface PendingDialog extends ConfirmRequest {
   id: string;
   /** The seat that asked, when the question came from another tab. */
   asker: string | null;
+  /**
+   * Who asked, so the dialog can name them the way the strip and the history
+   * do. The wire also carries a seat name, but that name is minted before the
+   * room is known and does not survive two seats whose names collide.
+   */
+  askerActor: ActorId | null;
 }
 
 interface ConfirmState {
@@ -86,7 +112,7 @@ interface ConfirmState {
   /** Ask this tab's human and everybody else on the board. */
   askEveryone: (req: ConfirmRequest) => Promise<Verdict>;
   /** Another tab is asking. */
-  openRemote: (id: string, req: ConfirmRequest, asker: string) => void;
+  openRemote: (id: string, req: ConfirmRequest, asker: string, askerActor?: ActorId) => void;
   /** Another tab's question has been settled elsewhere. */
   closeRemote: (id: string) => void;
   receiveReply: (id: string, from: ActorId, ok: boolean) => void;
@@ -115,6 +141,13 @@ export const useConfirmStore = create<ConfirmState>((set, get) => {
     finish({ approved: true, declinedBy: null, unanswered: [] });
   };
 
+  /** Put the next queued question on screen, if this tab owes anyone an answer. */
+  const advance = (): void => {
+    const next = queued.shift();
+    if (next === undefined) return;
+    set({ pending: next, resolve: null });
+  };
+
   return {
     pending: null,
     resolve: null,
@@ -126,6 +159,7 @@ export const useConfirmStore = create<ConfirmState>((set, get) => {
 
       if (pending && pending.asker !== null) {
         transport?.reply(pending.id, ok);
+        advance();
         return;
       }
       if (!outstanding || pending?.id !== outstanding.id) return;
@@ -140,7 +174,7 @@ export const useConfirmStore = create<ConfirmState>((set, get) => {
     request: (req) =>
       new Promise<boolean>((resolve) => {
         get().resolve?.(false);
-        set({ pending: { ...req, id: newId(), asker: null }, resolve });
+        set({ pending: { ...req, id: newId(), asker: null, askerActor: null }, resolve });
       }),
 
     askEveryone: (req) =>
@@ -162,17 +196,27 @@ export const useConfirmStore = create<ConfirmState>((set, get) => {
         };
         transport?.ask(id, req);
         get().resolve?.(false);
-        set({ pending: { ...req, id, asker: null }, resolve: null });
+        set({ pending: { ...req, id, asker: null, askerActor: null }, resolve: null });
       }),
 
-    openRemote: (id, req, asker) => {
+    openRemote: (id, req, asker, askerActor) => {
+      const dialog: PendingDialog = { ...req, id, asker, askerActor: askerActor ?? null };
+      const { pending } = get();
+      // A question this tab's own human is being asked locally still yields —
+      // it has a promise waiting on it, and dropping that would hang a tool.
+      if (pending !== null && pending.asker !== null) {
+        if (pending.id !== id && !queued.some((q) => q.id === id)) queued.push(dialog);
+        return;
+      }
       get().resolve?.(false);
-      set({ pending: { ...req, id, asker }, resolve: null });
+      set({ pending: dialog, resolve: null });
     },
 
     closeRemote: (id) => {
+      queued = queued.filter((q) => q.id !== id);
       if (get().pending?.id !== id) return;
       set({ pending: null, resolve: null });
+      advance();
     },
 
     receiveReply: (id, from, ok) => {
