@@ -42,6 +42,21 @@ describe('a note in someone else\'s hand', () => {
     expect(store().getNode(held.id)!.x).toBe(held.x);
   });
 
+  it('republishes the scene when it refuses, so the view can snap back', () => {
+    // The canvas keeps its own node list and only re-mirrors when `scene.nodes`
+    // changes identity. A refusal that quietly returned nothing left the note
+    // sitting wherever the refused hand had dragged it — the invariant held in
+    // the store and visibly did not hold on screen.
+    const held = node();
+    store().setGrip([held.id], ALEX);
+    const before = store().scene;
+
+    store().moveNode(held.id, 9999, 9999, LOCAL_HUMAN);
+
+    expect(store().scene.nodes).not.toBe(before.nodes);
+    expect(store().getNode(held.id)).toEqual(held);
+  });
+
   it('can still be moved by the hand that is holding it', () => {
     const held = node();
     store().setGrip([held.id], ALEX);

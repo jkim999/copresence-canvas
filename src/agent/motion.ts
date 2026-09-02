@@ -56,6 +56,14 @@ export const useCursorStore = create<CursorState>((set) => ({
 // store write per frame instead of N.
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a tween stopped. `dropped` is deliberately distinct from `yielded`: the
+ * agent replacing its own tween, or aiming at a note that has since gone, is
+ * not the human reaching for it — and reporting it as one puts a refusal in the
+ * model's mouth that nobody ever made.
+ */
+export type TweenOutcome = 'landed' | 'yielded' | 'dropped';
+
 interface NodeTween {
   id: string;
   fromX: number;
@@ -64,17 +72,24 @@ interface NodeTween {
   toY: number;
   start: number;
   duration: number;
-  /** true when the note reached its target, false when the human took it. */
-  resolve: (completed: boolean) => void;
+  resolve: (outcome: TweenOutcome) => void;
 }
 
 const nodeTweens = new Map<string, NodeTween>();
 let frameHandle = 0;
 let watchdog = 0;
 let lastTick = 0;
-let cursorFrame: ((now: number) => boolean) | null = null;
+/**
+ * One cursor, so one slot — but the promise in the displaced slot still belongs
+ * to somebody, and dropping it on the floor hangs whoever awaited it.
+ */
+interface CursorTween {
+  frame: (now: number) => boolean;
+  settle: () => void;
+}
+let cursorTween: CursorTween | null = null;
 
-const hasWork = (): boolean => nodeTweens.size > 0 || cursorFrame !== null;
+const hasWork = (): boolean => nodeTweens.size > 0 || cursorTween !== null;
 
 const step = (now: number): void => {
   lastTick = now;
@@ -104,10 +119,10 @@ const step = (now: number): void => {
   }
   for (const tween of finished) {
     nodeTweens.delete(tween.id);
-    tween.resolve(!stolen.has(tween.id));
+    tween.resolve(stolen.has(tween.id) ? 'yielded' : 'landed');
   }
 
-  if (cursorFrame && !cursorFrame(now)) cursorFrame = null;
+  if (cursorTween && !cursorTween.frame(now)) cursorTween = null;
 };
 
 const tick = (now: number): void => {
@@ -148,25 +163,26 @@ const ensureLoop = (): void => {
 };
 
 /**
- * Tween one note to a target. Resolves true when it lands, false when the human
- * grabbed it mid-flight and the agent let go.
+ * Tween one note to a target. Resolves `landed` when it arrives, `yielded` when
+ * a hand closed on it mid-flight, and `dropped` when the agent replaced this
+ * tween or the note went away.
  */
 export const tweenNodeTo = (
   id: string,
   toX: number,
   toY: number,
   duration = 460,
-): Promise<boolean> => {
+): Promise<TweenOutcome> => {
   const node = useSceneStore.getState().getNode(id);
-  if (!node) return Promise.resolve(false);
+  if (!node) return Promise.resolve('dropped');
 
   const existing = nodeTweens.get(id);
   if (existing) {
     nodeTweens.delete(id);
-    existing.resolve(false);
+    existing.resolve('dropped');
   }
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<TweenOutcome>((resolve) => {
     nodeTweens.set(id, {
       id,
       fromX: node.x,
@@ -198,7 +214,9 @@ export const moveCursorTo = (
   cursor.set({ visible: true, mode, x: fromX, y: fromY });
 
   return new Promise<void>((resolve) => {
-    cursorFrame = (now: number) => {
+    // Whatever was in the slot is over, and the call awaiting it has to hear so.
+    cursorTween?.settle();
+    const frame = (now: number): boolean => {
       const t = clamp01((now - start) / duration);
       const e = easeInOutCubic(t);
       const x = fromX + (toX - fromX) * e;
@@ -212,6 +230,7 @@ export const moveCursorTo = (
       }
       return true;
     };
+    cursorTween = { frame, settle: resolve };
     ensureLoop();
   });
 };

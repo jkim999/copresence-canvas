@@ -143,7 +143,11 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
   moveNode: (id, x, y, by) =>
     set((s) => {
-      if (heldByOther(s.grip, id, by)) return {};
+      // A refusal still publishes a fresh nodes array. The canvas mirrors the
+      // scene only when that array changes identity, so returning nothing would
+      // leave the note wherever the refused hand dragged it — refused in the
+      // store, moved on screen, and no feedback either way.
+      if (heldByOther(s.grip, id, by)) return { scene: { ...s.scene, nodes: [...s.scene.nodes] } };
       return {
         scene: {
           ...s.scene,

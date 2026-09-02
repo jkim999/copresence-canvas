@@ -15,6 +15,7 @@ import {
   tweenNodeTo,
   useCursorStore,
   wait,
+  type TweenOutcome,
 } from './motion';
 import { useConfirmStore } from './confirm';
 import { myAgent } from '../state/actors';
@@ -65,7 +66,7 @@ export const animateAgentCursorThrough = async (
   if (nodes.length === 0) return { moved: 0, yieldedToHuman: [] };
 
   const path = visitOrder(nodes, cursorPoint());
-  const carries: Promise<{ id: string; completed: boolean }>[] = [];
+  const carries: Promise<{ id: string; outcome: TweenOutcome }>[] = [];
   let visitedWithoutTarget = 0;
 
   for (const node of path) {
@@ -79,9 +80,9 @@ export const animateAgentCursorThrough = async (
     if (target) {
       // Not awaited: the note travels while the cursor moves to the next one.
       carries.push(
-        tweenNodeTo(node.id, target.x, target.y, carryDuration).then((completed) => ({
+        tweenNodeTo(node.id, target.x, target.y, carryDuration).then((outcome) => ({
           id: node.id,
-          completed,
+          outcome,
         })),
       );
     } else {
@@ -92,9 +93,11 @@ export const animateAgentCursorThrough = async (
 
   const settled = await Promise.all(carries);
   hideCursor();
-  const yieldedToHuman = settled.filter((c) => !c.completed).map((c) => c.id);
+  // Only a hand on the note counts as yielding. A tween the agent replaced is
+  // its own business and must not be reported to the model as a refusal.
+  const yieldedToHuman = settled.filter((c) => c.outcome === 'yielded').map((c) => c.id);
   return {
-    moved: settled.filter((c) => c.completed).length + visitedWithoutTarget,
+    moved: settled.filter((c) => c.outcome === 'landed').length + visitedWithoutTarget,
     yieldedToHuman,
   };
 };
