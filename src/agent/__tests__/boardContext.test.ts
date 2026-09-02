@@ -25,7 +25,7 @@ const peer = (actor: string, holding: string[] = [], agent: string | null = null
 });
 
 beforeEach(() => {
-  usePeerStore.setState({ peers: [] });
+  usePeerStore.setState({ peers: [], at: Date.now() });
   useSceneStore.getState().clearGrip();
   takeSeat();
 });
@@ -89,5 +89,31 @@ describe('an agent asking why it is being made to wait', () => {
 
   it('always explains that slowness is pacing and not a failure to retry', () => {
     expect(pacing().note).toMatch(/retry/i);
+  });
+});
+
+/**
+ * The peer list is a cache, refreshed when awareness fires an event — and in a
+ * hidden tab those events are throttled to roughly once a minute. Reporting a
+ * minute-old cache as present fact is how an agent ends up confidently wrong
+ * about who is in the room, which is the exact failure this tool was added to
+ * prevent. It says how old the answer is instead.
+ */
+describe('an agent asking how much to trust the peer list', () => {
+  it('says how long ago the room was last confirmed', () => {
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 4_000 });
+    expect(boardContext().peersConfirmedSecondsAgo).toBe(4);
+  });
+
+  it('warns in its own words once the list is older than a peer TTL', () => {
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 45_000 });
+    const ctx = boardContext();
+    expect(ctx.peersConfirmedSecondsAgo).toBe(45);
+    expect(ctx.note).toMatch(/stale|may have|no longer/i);
+  });
+
+  it('does not cry stale when the room was confirmed a moment ago', () => {
+    usePeerStore.setState({ peers: [peer(humanId())], at: Date.now() - 1_000 });
+    expect(boardContext().note).not.toMatch(/stale/i);
   });
 });

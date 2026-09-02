@@ -6,7 +6,17 @@ import {
   encodeAwarenessUpdate,
   removeAwarenessStates,
 } from 'y-protocols/awareness';
-import { MAX_IDS, holdsFrom, holdsOf, leave, peersOf, publish, readPresence } from '../presence';
+import {
+  MAX_IDS,
+  PRESENCE_TTL_MS,
+  everyoneOn,
+  holdsFrom,
+  holdsOf,
+  leave,
+  peersOf,
+  publish,
+  readPresence,
+} from '../presence';
 import { agentId, humanId } from '../../state/actors';
 
 /**
@@ -189,5 +199,75 @@ describe('a hand that goes away', () => {
 
     expect(holdsFrom(a)).toEqual({ n_1: ALEX });
     expect(readPresence(a.getLocalState())!.actor).toBe(ALEX);
+  });
+});
+
+/**
+ * Awareness drops a client that stops heartbeating, but it does that work on an
+ * interval of its own — and a browser throttles timers in a tab nobody is
+ * looking at, to once a second and eventually once a minute. So in a background
+ * tab the drop simply does not happen on time: a crashed peer stays in the room
+ * long past its TTL, and the notes in its hands stay locked, which makes the
+ * refusal — the whole product — wrong for a minute at a stretch.
+ *
+ * The fix is to stop asking a timer. Liveness is decided when somebody looks.
+ */
+describe('a peer that stopped heartbeating', () => {
+  const stale = (a: Awareness, client: number, ms: number): void => {
+    const meta = a.meta.get(client)!;
+    a.meta.set(client, { ...meta, lastUpdated: meta.lastUpdated - ms });
+  };
+
+  it('is gone from the room the moment anyone looks, with no timer involved', () => {
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: ALEX, holding: ['n_0'] });
+    publish(b, { actor: BO, holding: ['n_1'] });
+    gossip(a, b);
+    expect(peersOf(a)).toHaveLength(1);
+
+    // No interval is pumped and no removal is broadcast — exactly the state a
+    // throttled tab is in. Only the clock has moved.
+    stale(a, b.clientID, PRESENCE_TTL_MS + 1);
+
+    expect(peersOf(a)).toEqual([]);
+  });
+
+  it('releases the notes it was holding, so the board stops refusing them', () => {
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: ALEX, holding: ['n_0'] });
+    publish(b, { actor: BO, holding: ['n_1'] });
+    gossip(a, b);
+    expect(holdsFrom(a)).toEqual({ n_0: ALEX, n_1: BO });
+
+    stale(a, b.clientID, PRESENCE_TTL_MS + 1);
+
+    expect(holdsFrom(a)).toEqual({ n_0: ALEX });
+  });
+
+  it('keeps a peer that is merely quiet, not gone', () => {
+    const [, a] = seat();
+    const [, b] = seat();
+    publish(a, { actor: ALEX });
+    publish(b, { actor: BO, holding: ['n_1'] });
+    gossip(a, b);
+
+    stale(a, b.clientID, PRESENCE_TTL_MS - 1_000);
+
+    expect(peersOf(a).map((p) => p.actor)).toEqual([BO]);
+    expect(holdsFrom(a)).toEqual({ n_1: BO });
+  });
+
+  it('never expires you from your own board however long the tab idles', () => {
+    // The local client is self-evidently present. Timing it out would empty the
+    // room of the one person who is definitely in it.
+    const [, a] = seat();
+    publish(a, { actor: ALEX, holding: ['n_0'] });
+
+    stale(a, a.clientID, PRESENCE_TTL_MS * 10);
+
+    expect(everyoneOn(a).map((p) => p.actor)).toEqual([ALEX]);
+    expect(holdsFrom(a)).toEqual({ n_0: ALEX });
   });
 });

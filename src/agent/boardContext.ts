@@ -1,5 +1,6 @@
 import { usePeerStore } from '../sync/peers';
 import { me, myAgent, seatName } from '../state/actors';
+import { PRESENCE_TTL_MS } from '../sync/presence';
 import type { ActorId } from '../state/types';
 
 /**
@@ -73,13 +74,22 @@ export interface BoardContext {
   you: { seat: string; actor: ActorId; agent: ActorId };
   others: Participant[];
   alone: boolean;
+  /** How long ago this room was last confirmed, in seconds. */
+  peersConfirmedSecondsAgo: number;
   consent: string;
   pacing: Pacing;
   note: string;
 }
 
 export const boardContext = (): BoardContext => {
-  const others = usePeerStore.getState().peers.map(
+  const { peers, at } = usePeerStore.getState();
+  const confirmedAgo = Math.round((Date.now() - at) / 1000);
+  // Past a peer TTL the list is a cache, not an observation, and saying so is
+  // the difference between an agent that hedges and one that is confidently
+  // wrong about who is in the room.
+  const trustworthy = confirmedAgo * 1000 <= PRESENCE_TTL_MS;
+
+  const others = peers.map(
     (p): Participant => ({
       seat: seatName(p.actor),
       actor: p.actor,
@@ -90,6 +100,12 @@ export const boardContext = (): BoardContext => {
 
   const alone = others.length === 0;
   const names = others.map((o) => o.seat);
+  const staleWarning = trustworthy
+    ? ''
+    : ` This room was last confirmed ${confirmedAgo}s ago, which is longer than a peer's ` +
+      'time-to-live, so treat this list as stale: someone shown here may have left, and ' +
+      'someone not shown may have arrived. It goes stale because a background tab has its ' +
+      'timers throttled. Re-read this before relying on it.';
 
   return {
     you: { seat: seatName(me()), actor: me(), agent: myAgent() },
@@ -101,13 +117,15 @@ export const boardContext = (): BoardContext => {
       : `A whole-board change is put to everyone here — you and ${names.join(', ')}. It ` +
         'proceeds only if all of them approve, any single refusal stops it, and silence ' +
         'for ten seconds counts as a refusal.',
+    peersConfirmedSecondsAgo: confirmedAgo,
     pacing: pacing(),
-    note: alone
+    note:
+      (alone
       ? 'You and one human share this board. Nobody else is connected.'
       : `${others.length} other ${others.length === 1 ? 'person is' : 'people are'} on this ` +
         'board right now, each possibly with an agent of their own. Notes listed under ' +
         '`holding` are in someone else’s hand: the page will refuse to move them, and that ' +
         'refusal is the design working, not an error to route around. When a result names a ' +
-        'seat, it is one of the seats listed here.',
+        'seat, it is one of the seats listed here.') + staleWarning,
   };
 };

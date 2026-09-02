@@ -9,7 +9,16 @@ import type { ActorId } from '../state/types';
  * does not undo, it does not travel in a share link, and it changes far more
  * often than the board does.
  */
-export const usePeerStore = create<{ peers: Presence[] }>(() => ({ peers: [] }));
+/**
+ * `at` is when the room was last confirmed, not when it last changed. A reader
+ * needs to know the age of the answer: awareness events are throttled in a
+ * hidden tab, so an unchanged list may be a quiet room or a minute-old cache,
+ * and those are not the same thing to anyone deciding whether to act.
+ */
+export const usePeerStore = create<{ peers: Presence[]; at: number }>(() => ({
+  peers: [],
+  at: Date.now(),
+}));
 
 /** A cheap identity of the peer list, so a heartbeat does not re-render the page. */
 const signature = (peers: Presence[]): string =>
@@ -17,8 +26,13 @@ const signature = (peers: Presence[]): string =>
 
 export const setPeers = (peers: Presence[]): void => {
   const current = usePeerStore.getState().peers;
-  if (signature(current) === signature(peers)) return;
-  usePeerStore.setState({ peers });
+  // The timestamp advances even when the membership does not: hearing the same
+  // room again is exactly the evidence that it is still there.
+  if (signature(current) === signature(peers)) {
+    usePeerStore.setState({ at: Date.now() });
+    return;
+  }
+  usePeerStore.setState({ peers, at: Date.now() });
 };
 
 /**

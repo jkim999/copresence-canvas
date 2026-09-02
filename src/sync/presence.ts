@@ -17,8 +17,10 @@ import { LOCAL_HUMAN, isAgent } from '../state/actors';
  * tab that is force-quit, crashed or discarded says nothing, and its notes stay
  * held until awareness times the client out — up to 30 seconds, fixed in
  * `y-protocols` as a module constant with no per-instance override. Half a
- * minute is a long time to stare at a note you cannot move, and the honest fix
- * is a heartbeat of our own rather than a comment implying it is instant.
+ * minute is a long time to stare at a note you cannot move, so that timeout is
+ * enforced *here*, at read time, rather than left to the sweep inside
+ * y-protocols — because that sweep is an interval, and an interval does not run
+ * in a tab nobody is looking at. See `stillHere`.
  *
  * Everything arriving here is another tab, which may be running a different
  * build of this app or a broken one, so a peer state is validated exactly like
@@ -106,10 +108,44 @@ export const readPresence = (raw: unknown): Presence | null => {
   };
 };
 
-const statesOf = (awareness: Awareness, skipLocal: boolean): Presence[] => {
+/**
+ * How long a silent client stays in the room. Matches `outdatedTimeout` in
+ * y-protocols, which is a module constant there with no per-instance override.
+ */
+export const PRESENCE_TTL_MS = 30_000;
+
+/**
+ * Whether a client has been heard from recently enough to still count.
+ *
+ * Awareness does keep its own sweep, but it runs on an interval, and a browser
+ * throttles timers in a hidden tab — to once a second, and after five minutes
+ * to once a minute. A background tab therefore keeps a crashed peer in the room
+ * long past its TTL and goes on refusing the notes in its dead hands.
+ *
+ * So the question is answered at read time instead. No timer has to have fired
+ * for the answer to be right, which means it is right in a throttled tab, in a
+ * frozen tab, and on the first read after the tab wakes up.
+ */
+const stillHere = (awareness: Awareness, clientId: number, now: number): boolean => {
+  // You are self-evidently present. Timing yourself out would empty the room of
+  // the one person certainly in it.
+  if (clientId === awareness.clientID) return true;
+  const meta = awareness.meta.get(clientId);
+  // No metadata means no basis to judge, and hiding a peer we cannot judge is
+  // the more damaging guess: it would hand their held notes to somebody else.
+  if (meta === undefined) return true;
+  return now - meta.lastUpdated <= PRESENCE_TTL_MS;
+};
+
+const statesOf = (
+  awareness: Awareness,
+  skipLocal: boolean,
+  now: number = Date.now(),
+): Presence[] => {
   const out: Presence[] = [];
   awareness.getStates().forEach((raw, clientId) => {
     if (skipLocal && clientId === awareness.clientID) return;
+    if (!stillHere(awareness, clientId, now)) return;
     const p = readPresence(raw);
     if (p) out.push(p);
   });
@@ -117,10 +153,12 @@ const statesOf = (awareness: Awareness, skipLocal: boolean): Presence[] => {
 };
 
 /** Everyone but you. */
-export const peersOf = (awareness: Awareness): Presence[] => statesOf(awareness, true);
+export const peersOf = (awareness: Awareness, now?: number): Presence[] =>
+  statesOf(awareness, true, now);
 
 /** Everyone, you included. */
-export const everyoneOn = (awareness: Awareness): Presence[] => statesOf(awareness, false);
+export const everyoneOn = (awareness: Awareness, now?: number): Presence[] =>
+  statesOf(awareness, false, now);
 
 // --- folding many hands into one map ---------------------------------------
 

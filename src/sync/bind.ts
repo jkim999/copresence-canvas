@@ -19,8 +19,8 @@ import { completeRemoteCall, recordRemoteCall, setCallTransport } from '../agent
  * awareness while awareness comes back as the grip. Each direction is therefore
  * gated on *what actually changed* rather than on the fact that something did.
  * Origin tagging catches the first, a re-entrancy flag the second, and a value
- * comparison the third — a flag alone cannot stop the grip loop, because
- * awareness fires on every heartbeat whether or not the state differs.
+ * comparison the third — the grip is compared by value before it is published,
+ * so a heartbeat that changed nothing never becomes an outgoing write.
  */
 
 /**
