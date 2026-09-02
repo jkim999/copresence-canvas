@@ -19,6 +19,7 @@ import {
 } from './motion';
 import { useConfirmStore } from './confirm';
 import { myAgent, seatName } from '../state/actors';
+import { splitRepeats, type Repeat } from './dedupe';
 
 const centerOf = (n: SceneNode) => ({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
 
@@ -489,9 +490,27 @@ export const reorganizeBoard = async (
 export const addNotes = async (
   texts: string[],
   near?: string,
-): Promise<{ created: string[] }> => {
+): Promise<{ created: string[]; alreadyPresent: Repeat[]; note?: string }> => {
   const store = useSceneStore.getState();
-  store.snapshot(`Add ${texts.length} note${texts.length === 1 ? '' : 's'}`, myAgent());
+
+  // A retry after a client-side timeout arrives here as the same texts a second
+  // time, and the first call is usually still in flight rather than lost. The
+  // page refuses the repeat and says which note it matched, instead of quietly
+  // writing a duplicate the human then has to find and delete.
+  const { fresh, repeats } = splitRepeats(texts, store.scene.nodes, myAgent(), Date.now());
+  if (fresh.length === 0) {
+    log(`Already written — ${repeats.length} note${repeats.length === 1 ? '' : 's'} kept.`);
+    return {
+      created: [],
+      alreadyPresent: repeats,
+      note:
+        'Every one of those notes is already on the board — you wrote them moments ago. ' +
+        'Nothing was added. If the earlier call seemed not to return, it was being paced ' +
+        'by an animation, not dropped.',
+    };
+  }
+
+  store.snapshot(`Add ${fresh.length} note${fresh.length === 1 ? '' : 's'}`, myAgent());
 
   const anchorNode = near ? store.getNode(near) : undefined;
   const b = boundsOf(store.scene.nodes);
@@ -499,15 +518,25 @@ export const addNotes = async (
   const baseY = anchorNode ? anchorNode.y : b.y;
 
   const created: string[] = [];
-  for (let i = 0; i < texts.length; i += 1) {
+  for (let i = 0; i < fresh.length; i += 1) {
     const x = baseX + (i % 2) * 216;
     const y = baseY + Math.floor(i / 2) * 108;
     await moveCursorTo(x + 88, y + 42, { speed: 1.6, mode: 'writing' });
-    const node = useSceneStore.getState().addNode({ text: texts[i], x, y, color: PAPER.agentNote }, myAgent());
+    const node = useSceneStore.getState().addNode({ text: fresh[i], x, y, color: PAPER.agentNote }, myAgent());
     created.push(node.id);
     await wait(110);
   }
   log(`Added ${created.length} note${created.length === 1 ? '' : 's'}.`);
   hideCursor();
-  return { created };
+  return {
+    created,
+    alreadyPresent: repeats,
+    ...(repeats.length > 0
+      ? {
+          note:
+            `${repeats.length} of those were already on the board from a moment ago and ` +
+            'were not written twice. The rest were added.',
+        }
+      : {}),
+  };
 };
