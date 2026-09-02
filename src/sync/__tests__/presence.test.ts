@@ -17,6 +17,8 @@ import {
   peersOf,
   publish,
   readPresence,
+  selectionsOf,
+  type Presence,
 } from '../presence';
 import { agentId, humanId } from '../../state/actors';
 
@@ -372,5 +374,39 @@ describe('a seat that has left', () => {
 
     const left = peersOf(alex, now).map((p) => p.name);
     expect(left).not.toContain('Cass');
+  });
+});
+
+/**
+ * Selection travels because pointing is how people specify things on a canvas.
+ * The field was in the wire format from the start and nothing ever wrote it,
+ * which made "these ones" resolve to nothing: an agent could read every note on
+ * the board and had no way to know which of them a person was looking at.
+ */
+describe('what everyone is pointing at', () => {
+  const seat = (actor: string, selected: string[]): Presence => ({
+    actor,
+    name: 'Seat',
+    holding: [],
+    agent: null,
+    agentHolding: [],
+    selected,
+    cursor: null,
+    doing: null,
+  });
+
+  it('reports each seat against the notes it has lit up', () => {
+    const out = selectionsOf([seat('h_a', ['n1', 'n2']), seat('h_b', ['n3'])]);
+    expect(out).toEqual({ n1: 'h_a', n2: 'h_a', n3: 'h_b' });
+  });
+
+  it('gives one note one owner when two people point at it, the same way on every tab', () => {
+    const one = selectionsOf([seat('h_a', ['n1']), seat('h_b', ['n1'])]);
+    const other = selectionsOf([seat('h_b', ['n1']), seat('h_a', ['n1'])]);
+    expect(one.n1).toBe(other.n1);
+  });
+
+  it('is empty for a room where nobody has selected anything', () => {
+    expect(selectionsOf([seat('h_a', [])])).toEqual({});
   });
 });

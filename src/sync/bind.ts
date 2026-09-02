@@ -265,6 +265,34 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     if (state.mine !== prev.mine) pushIntent();
   });
 
+  /**
+   * What this tab's human has selected, out to the room.
+   *
+   * Selection has always been on the wire format and nothing ever wrote it,
+   * which left the field a promise and `selectionsFrom` a function with no
+   * callers. It matters because pointing is how people actually specify things
+   * on a canvas: you say "these ones" out loud to an agent and mean the four
+   * notes glowing under your cursor. Until this was published, "these" resolved
+   * to nothing — the agent could read every note on the board and had no way to
+   * know which of them you were looking at.
+   *
+   * It is presence rather than scene state on purpose. What you have selected
+   * is a fact about you, not about the board, and it should die with your tab
+   * exactly as your cursor does.
+   */
+  let publishedSelection: string[] = [];
+
+  const pushSelection = (): void => {
+    const selected = useSceneStore
+      .getState()
+      .scene.nodes.filter((n) => n.selected)
+      .map((n) => n.id)
+      .sort();
+    if (sameIds(selected, publishedSelection)) return;
+    publishedSelection = selected;
+    publish(awareness, { actor: me(), name: seatName(me()), selected });
+  };
+
   let pushTimer: ReturnType<typeof setTimeout> | undefined;
 
   const flushScene = (): void => {
@@ -288,6 +316,10 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     // A hand closing or opening is not a frame of animation, and waiting on it
     // is what lets two people grab the same note.
     if (state.claims !== prev.claims) pushGrip();
+    // Cheap to check and rarely true: selection changes on a click, not on a
+    // frame, and the comparison above stops a re-render of the same set from
+    // touching awareness at all.
+    if (state.scene.nodes !== prev.scene.nodes) pushSelection();
   });
 
   // A tab that keeps the default `human` id cannot be told apart from any other

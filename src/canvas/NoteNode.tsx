@@ -14,10 +14,19 @@ export interface NoteData extends Record<string, unknown> {
   pending: PendingKind | null;
   /** Named by the history row the reader is pointing at right now. */
   traced: boolean;
+  /**
+   * The seat of a colleague who has this note selected, if one has.
+   *
+   * Pointing, not holding: it stops nothing and refuses nothing. It is here
+   * because "these ones" is how people specify things on a canvas, and a
+   * sentence like that is unreadable if you cannot see what the other person is
+   * looking at.
+   */
+  pointedAt: string | null;
 }
 
 const NoteNodeInner = ({ data, selected }: NodeProps) => {
-  const { node, fresh, pending, traced } = data as unknown as NoteData;
+  const { node, fresh, pending, traced, pointedAt } = data as unknown as NoteData;
   const setNodeText = useSceneStore((s) => s.setNodeText);
   const pushLog = useSceneStore((s) => s.pushLog);
   const [editing, setEditing] = useState(false);
@@ -50,6 +59,7 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
     fresh ? 'agent-fresh' : '',
     pending ? `pending pending-${pending}` : '',
     traced ? 'traced' : '',
+    pointedAt ? 'pointed' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -84,6 +94,7 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
         <span className="note-text">{node.text}</span>
       )}
       {fresh && !editing && <span className="stamp">agent</span>}
+      {pointedAt && !editing && <span className="pointer-tag">{pointedAt}</span>}
       <Handle type="source" position={Position.Right} />
     </div>
   );

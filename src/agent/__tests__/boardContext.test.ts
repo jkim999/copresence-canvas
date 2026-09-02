@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { boardContext, pacing } from '../boardContext';
+import { crediting } from '../credit';
 import { setRoomSource, usePeerStore } from '../../sync/peers';
 import { PRESENCE_TTL_MS } from '../../sync/presence';
 import { useSceneStore } from '../../state/sceneStore';
@@ -163,5 +164,59 @@ describe('the room as it is, not as it was last cached', () => {
     usePeerStore.setState({ peers: [peer(cached)], at: Date.now() });
 
     expect(boardContext().others.map((o) => o.actor)).toEqual([cached]);
+  });
+});
+
+/**
+ * The seat an agent is told about must be the seat a person sees.
+ *
+ * `crediting()` numbers over every actor who has touched this board, including
+ * one whose tab has since gone; board context numbered over the room alone. So
+ * a colleague was "Nettle 2" in the ledger, on the note they had selected, and
+ * in a refusal — and plain "Nettle" in the one place an agent reads. Two live
+ * tabs and a selected note showed all three at once.
+ *
+ * A refusal names a seat and expects the agent to resolve it. If the agent's
+ * table of seats is numbered differently from everyone else's, that sentence is
+ * unresolvable — which is the whole failure this file was written against.
+ */
+describe('the seat names an agent is given', () => {
+  /**
+   * The condition that makes the two disagree, and the reason a clean board
+   * cannot show it: somebody whose work is still on the canvas but whose tab
+   * has gone. `crediting` counts them, because their notes still need
+   * attributing, and numbers the live colleague "Nettle 2" to keep them apart.
+   * Board context numbered over the room alone and called the same person
+   * "Nettle" — so a refusal naming one was unresolvable against the other.
+   */
+  const collidingWith = (name: string): string | null => {
+    for (let i = 0; i < 4000; i += 1) {
+      const candidate = `a_ghost${i}`;
+      if (seatName(candidate) === name) return candidate;
+    }
+    return null;
+  };
+
+  it('match the ones every human surface draws, with a departed hand on the board', () => {
+    const other = humanId();
+    const ghost = collidingWith(seatName(other));
+    // The whole point of the test; a run that cannot build the collision would
+    // pass without ever exercising the numbering.
+    expect(ghost).not.toBeNull();
+
+    usePeerStore.setState({ peers: [peer(other)], at: Date.now() });
+    useSceneStore.getState().resetScene();
+    useSceneStore.setState((s) => ({
+      scene: {
+        ...s.scene,
+        nodes: s.scene.nodes.map((n, i) => (i === 0 ? { ...n, lastEditedBy: ghost! } : n)),
+      },
+    }));
+
+    const credit = crediting();
+    const ctx = boardContext();
+
+    expect(ctx.others[0].seat).toBe(credit(other).seat);
+    expect(ctx.you.seat).toBe(credit(me()).seat);
   });
 });

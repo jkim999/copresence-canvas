@@ -1,5 +1,7 @@
 import { roomView } from '../sync/peers';
-import { disambiguate, me, myAgent, seatName } from '../state/actors';
+import { useSceneStore } from '../state/sceneStore';
+import { me, myAgent } from '../state/actors';
+import { crediting } from './credit';
 import { PRESENCE_TTL_MS } from '../sync/presence';
 import { describeIntent } from './intent';
 import type { ActorId, Intent } from '../state/types';
@@ -24,6 +26,15 @@ export interface Participant {
   actor: ActorId;
   /** Notes in their hand right now. Not yours to move. */
   holding: string[];
+  /**
+   * Notes they have selected — what they are pointing at, rather than holding.
+   *
+   * Unlike `holding` this forbids nothing. It is the answer to the word people
+   * actually use on a canvas: someone says "these ones", or "tidy this up", and
+   * means whatever is lit under their cursor. Without it that sentence resolves
+   * to the whole board and you have to guess which part of it they meant.
+   */
+  selected: string[];
   /** Whether they have an agent of their own working beside them. */
   hasAgent: boolean;
   /**
@@ -82,7 +93,13 @@ export const pacing = (): Pacing => {
 };
 
 export interface BoardContext {
-  you: { seat: string; actor: ActorId; agent: ActorId };
+  you: {
+    seat: string;
+    actor: ActorId;
+    agent: ActorId;
+    /** What your own human has selected. This is what "these" means. */
+    selected: string[];
+  };
   others: Participant[];
   alone: boolean;
   /** How long ago this room was last confirmed, in seconds. */
@@ -92,6 +109,27 @@ export interface BoardContext {
   note: string;
 }
 
+/** What this tab's own human has lit up right now. */
+const mySelection = (): string[] =>
+  useSceneStore
+    .getState()
+    .scene.nodes.filter((n) => n.selected)
+    .map((n) => n.id);
+
+/**
+ * Said only when there is a selection, and said plainly.
+ *
+ * A field the model never reads is the same as a field that does not exist, and
+ * "these ones" is the phrase this whole thing was added for. It earns a
+ * sentence exactly when it has content.
+ */
+const pointing = (n: number): string =>
+  n === 0
+    ? ''
+    : ` Your human currently has ${n} note${n === 1 ? '' : 's'} selected, listed under ` +
+      '`you.selected`. When they say "these", "this lot" or "what I have selected", that ' +
+      'is what they mean — use those ids rather than guessing from the text of the board.';
+
 export const boardContext = (): BoardContext => {
   const { peers, heardAgoMs } = roomView();
   const confirmedAgo = Number.isFinite(heardAgoMs) ? Math.round(heardAgoMs / 1000) : 0;
@@ -100,9 +138,17 @@ export const boardContext = (): BoardContext => {
   // wrong about who is in the room.
   const trustworthy = confirmedAgo * 1000 <= PRESENCE_TTL_MS;
 
-  // Distinct within this room. A seat name is the whole content of a refusal,
-  // so two participants under one name would make it unreadable.
-  const label = disambiguate([me(), ...peers.map((p) => p.actor)]);
+  // Named through the same function every human surface uses, rather than a
+  // second numbering of its own.
+  //
+  // A seat name is the entire content of a refusal — "Ochre declined" — and the
+  // agent is expected to resolve it against this list. Numbering here over the
+  // room alone while the ledger, the history and the notes numbered over
+  // everyone who has touched the board meant a colleague was "Nettle 2" on
+  // every surface a person looks at and plain "Nettle" in the one an agent
+  // reads. Two live tabs and one selected note showed all three at once.
+  const credit = crediting();
+  const label = (actor: ActorId): string => credit(actor).seat;
 
   const announcing = (seat: string, doing: Intent | null): Participant['doing'] =>
     doing === null
@@ -115,11 +161,12 @@ export const boardContext = (): BoardContext => {
         };
 
   const others = peers.map((p): Participant => {
-    const seat = label[p.actor] ?? seatName(p.actor);
+    const seat = label(p.actor);
     return {
       seat,
       actor: p.actor,
       holding: [...p.holding],
+      selected: [...p.selected],
       hasAgent: p.agent !== null,
       doing: announcing(seat, p.doing),
     };
@@ -135,7 +182,12 @@ export const boardContext = (): BoardContext => {
       'timers throttled. Re-read this before relying on it.';
 
   return {
-    you: { seat: label[me()] ?? seatName(me()), actor: me(), agent: myAgent() },
+    you: {
+      seat: label(me()),
+      actor: me(),
+      agent: myAgent(),
+      selected: mySelection(),
+    },
     others,
     alone,
     consent: alone
@@ -155,6 +207,7 @@ export const boardContext = (): BoardContext => {
         'refusal is the design working, not an error to route around. When a result names a ' +
         'seat, it is one of the seats listed here. A seat with a `doing` is mid-act right ' +
         'now: those notes are about to move, so pick somewhere else rather than racing it.') +
+      pointing(mySelection().length) +
       staleWarning,
   };
 };

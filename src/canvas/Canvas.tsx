@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -27,6 +27,9 @@ import { useTick } from './useTick';
 import { useCursorStore } from '../agent/motion';
 import { pendingFrom, useHeldStore, type PendingKind } from '../agent/announcements';
 import { useSpotlightStore } from '../ui/spotlight';
+import { usePeerStore } from '../sync/peers';
+import { selectionsOf } from '../sync/presence';
+import { crediting } from '../agent/credit';
 import { Ledger } from '../ui/Ledger';
 import { Happening } from '../ui/Happening';
 import { IconRunning } from '../ui/icons';
@@ -50,6 +53,7 @@ const buildNode = (
   fresh: boolean,
   pending: PendingKind | null,
   traced: boolean,
+  pointedAt: string | null,
   previous?: RFNode,
 ): RFNode => ({
   // Spreading the previous node preserves React Flow's own internals — most
@@ -60,10 +64,21 @@ const buildNode = (
   position: { x: n.x, y: n.y },
   selected: n.selected,
   style: { width: n.w, height: n.h },
-  data: { node: n, fresh, pending, traced },
+  data: { node: n, fresh, pending, traced, pointedAt },
 });
 
-export const Canvas = () => {
+interface CanvasProps {
+  /**
+   * Rendered inside the board's own box rather than the workspace's.
+   *
+   * Anything centred over "the canvas" has to live here: anchored to the
+   * workspace it is centred on the panel as well, and drifts right by half the
+   * panel's width — the same way the announcement strip did before it moved.
+   */
+  children?: ReactNode;
+}
+
+export const Canvas = ({ children }: CanvasProps) => {
   const scene = useSceneStore((s) => s.scene);
   const showProvenance = useSceneStore((s) => s.showProvenance);
   const moveNode = useSceneStore((s) => s.moveNode);
@@ -88,6 +103,17 @@ export const Canvas = () => {
   const litIds = useSpotlightStore((s) => s.ids);
   const traced = useMemo(() => new Set(litIds), [litIds]);
 
+  // What everyone else is pointing at. Resolved through the same crediting the
+  // strip and the history use, so one colleague has one name everywhere.
+  const peers = usePeerStore((s) => s.peers);
+  const pointedAt = useMemo(() => {
+    const credit = crediting();
+    const byNote = selectionsOf(peers);
+    const out = new Map<string, string>();
+    for (const [id, actor] of Object.entries(byNote)) out.set(id, credit(actor).seat);
+    return out;
+  }, [peers]);
+
   const { screenToFlowPosition, fitView } = useReactFlow();
   const dragged = useRef<Set<string>>(new Set());
 
@@ -110,7 +136,7 @@ export const Canvas = () => {
   // React Flow owns its node list so that measurements survive; the scene store
   // remains the source of truth and is mirrored into it on every change.
   const [rfNodes, setRfNodes] = useState<RFNode[]>(() =>
-    scene.nodes.map((n) => buildNode(n, false, null, false)),
+    scene.nodes.map((n) => buildNode(n, false, null, false, null)),
   );
 
   useEffect(() => {
@@ -121,6 +147,7 @@ export const Canvas = () => {
         const fresh = isFresh(n);
         const claim = pending.get(n.id) ?? null;
         const lit = traced.has(n.id);
+        const pointer = pointedAt.get(n.id) ?? null;
         const unchanged =
           prev &&
           prev.position.x === n.x &&
@@ -129,11 +156,12 @@ export const Canvas = () => {
           (prev.data as NoteData).node === n &&
           (prev.data as NoteData).fresh === fresh &&
           (prev.data as NoteData).pending === claim &&
-          (prev.data as NoteData).traced === lit;
-        return unchanged ? prev : buildNode(n, fresh, claim, lit, prev);
+          (prev.data as NoteData).traced === lit &&
+          (prev.data as NoteData).pointedAt === pointer;
+        return unchanged ? prev : buildNode(n, fresh, claim, lit, pointer, prev);
       });
     });
-  }, [scene.nodes, isFresh, now, pending, traced]);
+  }, [scene.nodes, isFresh, now, pending, traced, pointedAt]);
 
   const edges: Edge[] = useMemo(
     () =>
@@ -280,6 +308,7 @@ export const Canvas = () => {
       )}
 
       <Happening />
+      {children}
       <Ledger />
 
       <div className="hints">

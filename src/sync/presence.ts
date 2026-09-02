@@ -285,9 +285,19 @@ export const holdsOf = (states: Presence[]): Record<string, ActorId> => claim(st
 export const holdsFrom = (awareness: Awareness): Record<string, ActorId> =>
   holdsOf(everyoneOn(awareness));
 
-/** Who has which note selected. Selection is a hand's business, not the board's. */
+/**
+ * Who has which note selected. Selection is a hand's business, not the board's.
+ *
+ * Resolved the same way holds are, and for the same reason: two people can
+ * point at one note, and every tab has to draw the same answer or the board
+ * disagrees with itself about who is looking at what. Unlike a hold, this
+ * forbids nothing — it is only ever shown.
+ */
+export const selectionsOf = (states: Presence[]): Record<string, ActorId> =>
+  claim(states, (p) => [{ actor: p.actor, ids: p.selected }]);
+
 export const selectionsFrom = (awareness: Awareness): Record<string, ActorId> =>
-  claim(everyoneOn(awareness), (p) => [{ actor: p.actor, ids: p.selected }]);
+  selectionsOf(everyoneOn(awareness));
 
 // --- writing ---------------------------------------------------------------
 
