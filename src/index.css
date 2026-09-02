@@ -1110,3 +1110,11 @@ button { font: inherit; cursor: pointer; color: inherit; }
 @keyframes seat-in {
   from { opacity: 0; transform: scale(0.96); }
 }
+
+/* A peer's pointer is sampled, not streamed, so CSS covers the gap between
+   samples. Linear, because it is tracking something real: an eased curve would
+   arrive late and overshoot a hand that has already stopped. */
+.peer-cursor {
+  transition: transform 90ms linear;
+  animation: seat-in 220ms var(--ease-out) both;
+}

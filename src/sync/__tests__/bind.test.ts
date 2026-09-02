@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
-import { connectBoard, type Connection } from '../bind';
+import { connectBoard, reportCursor, type Connection } from '../bind';
 import { openSession, type Session } from '../channel';
 import { readScene, writeScene } from '../doc';
-import { holdsFrom, publish } from '../presence';
+import { holdsFrom, peersOf, publish } from '../presence';
+import { usePeerCursorStore } from '../peers';
 import { useSceneStore } from '../../state/sceneStore';
 import { LOCAL_HUMAN, humanId, me, seatName } from '../../state/actors';
 import type { Scene, SceneNode } from '../../state/types';
@@ -201,5 +202,46 @@ describe('hands, across the wire', () => {
     // One local set, and at most the echo that confirms it.
     expect(writes).toBeLessThanOrEqual(2);
     expect(store().heldBy(target.id)).toBe(me());
+  });
+});
+
+describe('pointers, across the wire', () => {
+  it('carries this tab\'s pointer to the other one', async () => {
+    const room = newRoom();
+    const other = otherTab(room);
+    connect(room);
+    await settle();
+
+    reportCursor({ x: 120, y: 340 });
+    await settle();
+
+    expect(peersOf(other.awareness)[0]?.cursor).toEqual({ x: 120, y: 340 });
+  });
+
+  it('takes a peer\'s pointer out of the room again when they leave', async () => {
+    const room = newRoom();
+    const other = otherTab(room);
+    connect(room);
+    publish(other.awareness, { actor: BO, name: 'Bo', cursor: { x: 10, y: 20 } });
+    await settle();
+    expect(usePeerCursorStore.getState().cursors).toHaveLength(1);
+
+    other.session.close();
+    peers.length = 0;
+    await settle();
+
+    expect(usePeerCursorStore.getState().cursors).toEqual([]);
+  });
+
+  it('is a no-op once the tab has disconnected', async () => {
+    const room = newRoom();
+    const c = connect(room);
+    await settle();
+    c.stop();
+    connections.length = 0;
+
+    // Pointer events can outlive teardown by a frame; reporting into a closed
+    // connection must not throw its way up through a DOM handler.
+    expect(() => reportCursor({ x: 1, y: 2 })).not.toThrow();
   });
 });

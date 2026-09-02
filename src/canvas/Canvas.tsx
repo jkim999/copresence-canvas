@@ -21,6 +21,8 @@ import { NoteNode, PROVENANCE_MS, type NoteData } from './NoteNode';
 import { AgentCursor } from './AgentCursor';
 import { HumanCursor } from './HumanCursor';
 import { AnnotationLayer, RegionLayer } from './Overlays';
+import { PeerCursors } from './PeerCursors';
+import { reportCursor } from '../sync/bind';
 import { useTick } from './useTick';
 import { useCursorStore } from '../agent/motion';
 import { Ledger } from '../ui/Ledger';
@@ -34,6 +36,9 @@ const DOING: Record<string, string> = {
 };
 
 const nodeTypes = { note: NoteNode };
+
+/** ~22 pointer samples a second: enough to read as a hand, not a firehose. */
+const CURSOR_SAMPLE_MS = 45;
 
 type RFNode = Node<NoteData>;
 
@@ -157,6 +162,26 @@ export const Canvas = () => {
     [moveNode, setGrip],
   );
 
+  // Pointer moves fire far faster than anyone can read, and each one is a
+  // message on the wire, so they are sampled rather than streamed. The peer
+  // cursor interpolates between samples in CSS, which is cheaper than sending
+  // every frame and indistinguishable at this speed.
+  const lastReport = useRef(0);
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const now = performance.now();
+      if (now - lastReport.current < CURSOR_SAMPLE_MS) return;
+      lastReport.current = now;
+      const point = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      reportCursor({ x: point.x, y: point.y });
+    },
+    [screenToFlowPosition],
+  );
+
+  // Leaving the canvas takes your hand off the board, so it should take your
+  // pointer off everyone else's too.
+  const onPointerLeave = useCallback(() => reportCursor(null), []);
+
   const onDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       if ((event.target as HTMLElement).closest('.react-flow__node')) return;
@@ -182,7 +207,14 @@ export const Canvas = () => {
   );
 
   return (
-    <div className="canvas-wrap" onDoubleClick={onDoubleClick} onKeyDown={onKeyDown} tabIndex={-1}>
+    <div
+      className="canvas-wrap"
+      onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
+      tabIndex={-1}
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={edges}
@@ -210,6 +242,7 @@ export const Canvas = () => {
           maskColor="rgba(20,19,16,.55)"
         />
         <RegionLayer />
+        <PeerCursors />
         <AnnotationLayer />
         <AgentCursor />
       </ReactFlow>

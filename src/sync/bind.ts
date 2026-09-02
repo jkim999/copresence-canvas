@@ -4,8 +4,8 @@ import type { ActorId, Scene } from '../state/types';
 import { useSceneStore } from '../state/sceneStore';
 import { me, myAgent, seatName, takeSeat } from '../state/actors';
 import { ORIGIN_LOCAL, collections, readScene, writeScene } from './doc';
-import { holdsFrom, peersOf, publish } from './presence';
-import { setPeers } from './peers';
+import { holdsFrom, peersOf, publish, type Cursor } from './presence';
+import { setPeerCursors, setPeers } from './peers';
 import { openSession, roomFromLocation, type Session } from './channel';
 
 /**
@@ -69,6 +69,21 @@ const sameGrip = (a: Record<string, ActorId>, b: Record<string, ActorId>): boole
   return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
 };
 
+/**
+ * The connection the pointer handlers talk to.
+ *
+ * A DOM handler has no way to reach into a closure, and a pointer event can
+ * easily outlive teardown by a frame, so reporting into a dead connection has
+ * to be a no-op rather than a throw on its way up through React.
+ */
+let broadcasting: Awareness | null = null;
+
+/** Tell the room where this tab's pointer is, in flow coordinates. */
+export const reportCursor = (cursor: Cursor | null): void => {
+  if (!broadcasting) return;
+  publish(broadcasting, { actor: me(), name: seatName(me()), cursor });
+};
+
 export const connectBoard = (options: ConnectOptions = {}): Connection => {
   const doc = new Y.Doc();
   const awareness = new Awareness(doc);
@@ -103,7 +118,9 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   // --- awareness -> store ---------------------------------------------------
 
   const pullPresence = (): void => {
-    setPeers(peersOf(awareness));
+    const others = peersOf(awareness);
+    setPeers(others);
+    setPeerCursors(others);
     const next = holdsFrom(awareness);
     if (sameGrip(useSceneStore.getState().grip, next)) return;
     useSceneStore.setState({ grip: next });
@@ -138,6 +155,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
 
   // Be visible to the room straight away, board or no board.
   publish(awareness, { actor: me(), name: seatName(me()) });
+  broadcasting = awareness;
 
   const grace = setTimeout(() => {
     if (collections(doc).nodes.size === 0) {
@@ -159,7 +177,9 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     awareness.off('change', pullPresence);
     // Says goodbye on the way out, which is what frees anything still in hand.
     session.close();
+    if (broadcasting === awareness) broadcasting = null;
     setPeers([]);
+    setPeerCursors([]);
     awareness.destroy();
     doc.destroy();
     globalThis.removeEventListener?.('beforeunload', stop);
