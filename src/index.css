@@ -1027,6 +1027,26 @@ button { font: inherit; cursor: pointer; color: inherit; }
   text-transform: uppercase;
   color: var(--ink-3);
 }
+/* Expanded, the ledger stays a panel over the board rather than becoming the
+   board: it scrolls inside itself and never grows past half the viewport. */
+.ledger.open {
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ledger-head button.more {
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 4px;
+  transition: color 140ms var(--ease-out), background 140ms var(--ease-out);
+}
+.ledger-head button.more:hover { color: var(--ink-1); background: rgba(255, 255, 255, 0.07); }
+.ledger-head button.more:focus-visible { outline: 2px solid var(--agent-lift); outline-offset: 2px; }
+
 .ledger-head .more {
   font-size: 9.5px;
   letter-spacing: 0.04em;

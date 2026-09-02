@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useHostStore } from '../agent/webmcp';
 import { formatArgs, summarizeResult } from '../agent/callFormat';
 
@@ -12,19 +13,38 @@ const VISIBLE = 3;
  *
  * Calls from the other people on the board appear here too, under their seat
  * name. Without that, two agents working one board looks exactly like one.
+ *
+ * Only the last few rows are shown, because the ledger sits over the canvas and
+ * the board is the thing being looked at. The rest are not thrown away: the
+ * count is a button, and the evidence a viewer cannot reach is not evidence.
  */
 export const Ledger = () => {
   const calls = useHostStore((s) => s.calls);
+  const [open, setOpen] = useState(false);
   if (calls.length === 0) return null;
 
-  const recent = calls.slice(-VISIBLE);
-  const hidden = calls.length - recent.length;
+  const recent = open ? calls : calls.slice(-VISIBLE);
+  const hidden = calls.length - calls.slice(-VISIBLE).length;
 
   return (
-    <div className="ledger" role="log" aria-live="polite" aria-label="Agent tool calls">
+    <div
+      className={`ledger${open ? ' open' : ''}`}
+      role="log"
+      aria-live="polite"
+      aria-label="Agent tool calls"
+    >
       <span className="ledger-head">
         agent tool calls
-        {hidden > 0 && <span className="more">+{hidden} earlier</span>}
+        {hidden > 0 && (
+          <button
+            type="button"
+            className="more"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? 'show less' : `+${hidden} earlier`}
+          </button>
+        )}
       </span>
       {recent.map((c) => {
         const answered = c.by ? c.out !== undefined : c.result !== undefined;
