@@ -1523,6 +1523,16 @@ button { font: inherit; cursor: pointer; color: inherit; }
     translate: -50% 10px;
   }
 }
+/* The middle beat: the act is running and the instruction is true for a few
+   seconds only. Narrower and quieter than the card it replaces — it is a
+   caption on something happening elsewhere on screen, not a thing to read. */
+.invitation.running {
+  padding: 10px 18px 9px;
+  gap: 6px;
+  border: 1px solid var(--agent-lift);
+}
+.invitation.running .invitation-lede { font-size: 12px; }
+.invitation-lede strong { color: var(--human-lift); font-weight: 650; }
 .invitation-lede {
   margin: 0;
   max-width: 34ch;
