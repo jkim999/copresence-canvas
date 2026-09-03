@@ -55,29 +55,32 @@ Say nothing over this one.
 
 ---
 
-### Say what it is — 40s
+### Say what it is — 50s
 
-Open the **Tools** tab and leave it up.
+Open the **Tools** tab and leave it up. Say this loosely — it should sound like you
+explaining it to someone, not reading it.
 
-> "Figma and Miro solved multiplayer — for people. Notion put an assistant in the sidebar,
-> and yes, it'll edit a doc while you're in it. That part's solved.
+> "Okay so — Notion's AI will edit a doc while you're sitting in it. That's real, that
+> works. But that's their agent, on their servers, running their code.
 >
-> But it's Notion's agent, on Notion's server, with Notion's privileges. What's new is a
-> page handing capabilities to an agent it doesn't own and can't trust — and being able to
-> say no.
+> What I wanted to know was what happens when the agent isn't yours. Someone turns up with
+> ChatGPT, and your page has to decide what it's actually willing to let them do.
 >
-> So: an infinite sticky-note canvas. React, Yjs for the peer-to-peer sync, no backend at
-> all. Eleven tools registered on the page through `document.modelContext.registerTool` —
-> reads, writes, and one that asks permission.
+> So — sticky notes. React, Yjs syncing the two windows, no backend at all.
 >
-> The schemas are the boring half. The interesting half is what comes back: three of these
-> can refuse, and the refusal is the return value. Their doc *merges* a conflict. This one
-> *adjudicates* it. That's the rest of this video."
+> Eleven tools on `document.modelContext.registerTool`. Two bits worth calling out. There's
+> no elicitation API in WebMCP yet, so when the agent wants to reorganise everything, the
+> handler just waits — and it asks everyone on the board, not only me.
+>
+> And refusals come back as return values, not errors. Throw at a model and it just retries.
+> Tell it what it hit and who got there first, and it does something smarter.
+>
+> Notion merges a conflict. This thing argues about it."
 
 **Do not say "a server couldn't do this."** It could — Notion's server knows who is in the
 document, could prompt them, and gets compare-and-swap free from its database. The claim
-that survives contact with a judge who works on one of these products is narrower and
-better: the agent is not the vendor's, and a merge rule is not a decision.
+that survives a judge who works on one of those products is narrower: the agent is not the
+vendor's, and a merge rule is not a decision.
 
 ### C · take a note out of its hands — 30s
 
