@@ -29,9 +29,6 @@ interface Props {
 
 type Flash = 'idle' | 'done' | 'failed';
 
-/** Written out rather than counted, because "one board, 4 hands" reads badly. */
-const HANDS = ['two', 'four', 'six', 'eight', 'ten', 'many'];
-
 /** A button that reports what happened, then goes quiet again. */
 const useFlash = (): [Flash, (next: Flash) => void] => {
   const [state, setState] = useState<Flash>('idle');
@@ -142,8 +139,6 @@ export const TopBar = ({ panelOpen, onTogglePanel, onImport }: Props) => {
           <i />
         </span>
         Co-Presence Canvas
-        {/* Every person on the board brings an agent, so hands come in pairs. */}
-        <em>one board, {HANDS[Math.min(peers.length, HANDS.length - 1)]} hands</em>
       </div>
 
       <div className="topbar-spacer" />
