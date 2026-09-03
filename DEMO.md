@@ -66,6 +66,11 @@ way — the point is to sound like you're explaining it to one person, not prese
 > What I wanted to see was what happens when the agent isn't yours. You turn up with
 > ChatGPT, and my page has to work out what it'll let you do.
 >
+> And what happens when there's two of them. Your agent and my agent, same space, both
+> going for the same note. Nothing accounts for that — Notion doesn't have to, there's only
+> ever one agent and it's theirs. Everything I hit only shows up once there's more than one
+> of you.
+>
 > It's just sticky notes. React, Yjs between the two windows, no backend — there's nothing
 > behind it.
 >
@@ -80,8 +85,8 @@ way — the point is to sound like you're explaining it to one person, not prese
 >
 > Anyway — that's what the next minute is."
 
-Running long? Cut *"You turn up with ChatGPT…"* — the sentence before it already carries
-the point.
+Running long? Cut *"You turn up with ChatGPT…"* — the paragraph after it makes the same
+point harder.
 
 **Do not say "a server couldn't do this."** It could — Notion's server knows who is in the
 document, could prompt them, and gets compare-and-swap free from its database. The claim
