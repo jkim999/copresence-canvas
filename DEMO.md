@@ -1,104 +1,140 @@
 # Demo script
 
-Target **2:20**, hard ceiling 3:00. Public YouTube, audio on. Judges watch this before
-they open the URL, so the first fifteen seconds have to carry the whole idea without
-narration.
+Target **2:40**, hard ceiling 3:00. Public YouTube, audio on. Judges watch this before
+they open the URL, so the first fifteen seconds have to carry the idea without narration.
+
+The spine is three refusals, in ascending order of how much they cover: **a hand**, then
+**reality**, then **the room**. Each one is the page telling the agent no, for a reason no
+server could have known.
 
 ## Before you record
 
-- **Close every tab of the deployed site, then open one fresh.** A room that already
-  holds a board wins over a new tab's seed, so a stale tab keeps serving the old board.
-- **Record at `?pace=2`** — open
-  `https://copresence-canvas.vercel.app/?pace=2`. At true speed a note is in flight for
-  under half a second and the whole six-note act is over in four, which is long enough
-  to see and too short to interrupt. `pace` scales durations and nothing else: same code,
-  same refusals, same results. Say "I've slowed the animation down" once, on camera, when
-  you first grab a note — it costs three words and removes the only thing a judge could
-  wonder about.
+- **Close every tab of the deployed site, then open one fresh.** A room that already holds
+  a board wins over a new tab's seed, so a stale tab keeps serving the old board.
+- **Record at `?pace=2`** — `https://copresence-canvas.vercel.app/?pace=2`. At true speed a
+  note is in flight under half a second and a six-note act is over in four, which is long
+  enough to see and too short to interrupt. `pace` scales durations and nothing else: same
+  code, same refusals, same results. Say "I've slowed the animation down" once, on camera,
+  the first time you grab a note.
 - Chrome with `chrome://flags/#enable-webmcp-testing` on. Check the header pill reads
-  *WebMCP live · document.modelContext · 11 tools* before you hit record. If it says
-  the console instead, that's still honest, but the pill is on camera and judges read it.
+  *WebMCP live · document.modelContext · 11 tools* before you hit record.
 - Window ~1600×1000, panel open, zoom 100%.
-- **Both windows visible at once.** Do not minimise the second seat — a hidden tab lands
-  every animation instantly and throttles its heartbeat, which kills the pacing and can
-  make the second seat look absent.
-- Practise the grab. You want to be *continuously* dragging a note the entire time the
-  agent is working. A still hand kills the shot.
+- **Two windows, both visible from 1:05 on.** Never minimise the second seat — a hidden tab
+  lands every animation instantly and throttles its heartbeat, so it can look absent.
+- Practise the grab. You want to be *continuously* dragging while the agent works.
+- **Don't touch "Link evidence to hypotheses" or "Build the hypothesis tree."** Both throw
+  on this board — their keyword tables still describe the board this demo replaced.
 
 ## 0:00 – 0:15 — no narration
 
-Start **Cluster by kind of evidence** (or ask the host: *"group the quotes together and
-the metrics together"*).
+Start **Cluster by kind of evidence**. The instant the teal cursor appears, start dragging
+a note of your own and don't stop. Two labelled cursors, both moving notes, neither
+waiting. Let it play silently.
 
-The instant the teal cursor appears, start dragging a note of your own and don't stop.
-Two labelled cursors on screen, both moving different notes, neither waiting. Let it
-play silently.
+## 0:15 – 0:35 — say what it is
 
-## 0:15 – 0:40 — say what it is
-
-> "That's a planning board — a software project, a week in. Twenty-eight notes.
-> An agent is rearranging it and I'm rearranging it, at the same time, and neither of us
-> is waiting for the other.
+> "A planning board — software project, a week in, twenty-eight notes. An agent is
+> rearranging it and I'm rearranging it at the same time, and neither of us is waiting.
 >
-> None of this touches a server. Those are note positions in my browser's memory. No
-> backend has ever seen them, and there's no API that could reach them."
+> None of this touches a server. Those are positions in my browser's memory. No backend
+> has seen them and there's no API that could reach them."
 
 Flash the **Tools** tab: eleven tools, live schemas, registered on the page.
 
-## 0:40 – 1:20 — the yield. This is the submission.
+## 0:35 – 1:05 — refusal one: a hand
 
-Run **Build the timeline**, or ask for one. It visits notes in nearest-neighbour order,
-so **pick your note before you start** — one near the middle of the group, so the cursor
-reaches it a few seconds in rather than immediately.
-
-Take it as the cursor starts moving toward it, and **keep holding it.** Say it as it
-happens:
+Run **Build the timeline**. It visits notes in nearest-neighbour order, so **pick your note
+before you start** — one in the middle of the group, so the cursor reaches it a few seconds
+in rather than immediately. Take it as the cursor moves toward it and keep holding.
 
 > "I just took a note out of its hands. Watch what it gets back."
 
-Show the result on the ledger — `yielded 1 to you` — and read the model-facing line out
-loud:
+Ledger reads `yielded 1 to you`. Read the model-facing line aloud:
 
-> "*The human took those notes while you were moving them. They are where the human put
-> them. Do not move them back unless asked.*
+> "*The human took those notes while you were moving them. Do not move them back unless
+> asked.* That last sentence is the point — without it the agent helpfully undoes me on its
+> next call.
 >
-> That last sentence is the point. Without it the agent helpfully undoes me on its next
-> call. And a tool running on a server could never do this — my hand on that note existed
-> for about a second, in one tab, in memory. It was never persisted. There's nothing for
-> a backend to check."
+> A tool on a server could never do this. My hand on that note existed for about a second,
+> in one tab, in memory. It was never persisted. There is nothing for a backend to check."
 
-## 1:20 – 2:00 — the room
+**Then double-click a note and start typing, and run it again.** The note you're typing in
+doesn't move either.
 
-Cut to both windows side by side.
+> "Typing counts as a hand too. It didn't used to — it would carry the note out from under
+> the cursor, and my next keystroke would overwrite whatever had arrived."
 
-> "Second tab is a second person, with an agent of their own. No room code, no account,
-> no server — peer to peer. Now the destructive one."
+## 1:05 – 1:50 — refusal two: reality
+
+Second window, side by side. This beat is the one to get right; it's the least flashy and
+the most general.
+
+> "Second tab is a second person with an agent of their own. No room code, no account, no
+> server — peer to peer, same board."
+
+**In window one**, start an act and let it read the board — the ledger shows `get_scene`.
+**In window two**, while that's still on screen, run **Lay the actions out as a grid** so
+seat two moves notes that seat one's plan named. Then let window one's write land.
+
+> "Here's what actually breaks agents on a shared page. It read the board, it took a couple
+> of seconds to decide — and in those seconds somebody else moved the notes it was about to
+> rearrange. So it's writing to a board that no longer exists."
+
+Show the refusal on the ledger — `refused · 2 notes changed underneath` — and read the
+result:
+
+> "*Refused: you planned this against a board that has since changed. Ochre's agent moved
+> and grouped 2 of the notes you named. Nothing was changed, so their work is intact. Call
+> what_changed, then decide again.*
+>
+> Nothing moved. It named who got there first, and it told the model to look again rather
+> than push harder. That's compare-and-swap — except a backend gets it free from its
+> database, and a page has to keep the bookmark itself. The read happened *here*, in this
+> tab, against a scene in memory that the other tab is mutating. No server holds that
+> version, because there is no server.
+>
+> And the grip needs my hand to land inside about half a second. This one fires every time
+> the model thinks for longer than the room takes to change — which is always."
+
+## 1:50 – 2:25 — refusal three: the room
 
 Run **Reorganise the entire board**.
 
-> "It doesn't ask me. It asks everybody who's on this board, and any one of them can
-> refuse. So can silence."
+> "It doesn't ask me. It asks everybody on this board, and any one of them can refuse. So
+> can silence."
 
-Let it time out without answering in the other window. Show the result:
-`approved: false` — *nobody answered in time, so nothing was moved.*
+Let it time out unanswered in the other window: `approved: false` — *nobody answered in
+time, so nothing was moved.*
 
 > "Ten seconds of nothing counts as no."
 
-Then do it again and approve it, and let the board restructure while you talk over it.
+Run it again and approve, and let the board restructure while you talk over it.
 
-## 2:00 – 2:20 — land it
+> "Consent to *the user* is a confirm dialog, and that's solved. Consent to whoever is
+> actually in the room right now, where one person is enough to stop it — that only has an
+> answer if the tools live where the room does."
 
-> "Everyone's building agents that can act on a live page. This is one that can be told
-> no by a hand on a note — and that only works because the tool is running inside the
-> session, next to the thing I'm touching. A server can't be interrupted by a hand, and
-> it can't ask a room. This one is in the room."
+## 2:25 – 2:40 — land it
+
+> "Everyone's building agents that can act on a live page. Three things outrank this one: a
+> hand on a note, the room, and whether the board it planned against still exists. None of
+> those are things a server could have known. A server can't be interrupted by a hand, it
+> can't ask a room, and it can't tell you the ground moved under a read it never saw.
+>
+> This one is in the room."
 
 ## If a beat fails on camera
 
-- **No yield** — your hand landed after that note had already been put down. Check the
-  URL still has `?pace=2`, and grab the note *while the cursor is travelling to it*, not
-  after it arrives. At pace 2 you have roughly a second and a half per note.
-- **Consent dialog doesn't appear** — you're alone on the board. Alone, whole-board
-  changes just apply. Check the second window is open and visible.
-- **Second seat missing from the roster** — it was backgrounded long enough to be dropped.
-  Bring it forward and give it a few seconds.
+- **No yield** — your hand landed after that note was already down. Check the URL still has
+  `?pace=2`, and grab while the cursor is *travelling*, not after it arrives. At pace 2 you
+  have roughly a second and a half per note.
+- **No refusal on the staleness beat** — the two seats have to overlap on *notes*, not just
+  on the board. Seat two must move notes seat one's act named, and seat one must have read
+  before seat two moved. Check the ledger in window one shows its `get_scene` first.
+- **Refusal says "board unverifiable"** — the journal no longer reaches back to the
+  bookmark, so the gate failed closed. Honest, but not the shot you want. Reload both seats
+  and keep the beat short.
+- **Consent dialog doesn't appear** — you're alone. Alone, whole-board changes just apply.
+  Check the second window is open and visible.
+- **Second seat missing from the roster** — backgrounded long enough to be dropped. Bring
+  it forward and wait a few seconds.

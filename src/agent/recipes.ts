@@ -16,6 +16,24 @@ type Call = (name: string, args: unknown) => Promise<unknown>;
 
 export type { Category };
 
+/**
+ * The read a write cites back.
+ *
+ * The console stands in for a model's judgement, not for its manners, so it
+ * plans the way a well-behaved agent does: read the board, keep the bookmark,
+ * hand it back on the write. The page then refuses the act outright if somebody
+ * else moved those notes while the recipe was deciding, instead of letting it
+ * land on top of their work.
+ *
+ * One bookmark covers a recipe that writes several times. An agent's own writes
+ * are never held against it, and re-reading between its own calls would be
+ * pretending to a caution it does not need.
+ */
+const premise = async (call: Call): Promise<number | undefined> => {
+  const scene = (await call('get_scene', {})) as { asOf?: unknown };
+  return typeof scene?.asOf === 'number' ? scene.asOf : undefined;
+};
+
 const byCategory = (): Record<Category, { id: string; text: string }[]> => {
   const nodes = useSceneStore.getState().scene.nodes.filter((n) => n.kind === 'idea');
   const out: Record<Category, { id: string; text: string }[]> = {
@@ -93,9 +111,11 @@ export const RECIPES: Recipe[] = [
     tool: 'arrange_region',
     group: 'structure',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       if (groups.event.length < 2) throw new Error('No dated notes on the board.');
       return call('arrange_region', {
+        basedOn,
         nodeIds: groups.event.map((n) => n.id),
         layout: 'timeline_horizontal',
         label: 'What happened, in order',
@@ -109,6 +129,7 @@ export const RECIPES: Recipe[] = [
     tool: 'arrange_region ×3',
     group: 'structure',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       const plan: [Category, string][] = [
         ['quote', 'What people said'],
@@ -120,6 +141,7 @@ export const RECIPES: Recipe[] = [
         if (groups[category].length < 2) continue;
         results.push(
           await call('arrange_region', {
+        basedOn,
             nodeIds: groups[category].map((n) => n.id),
             layout: 'cluster',
             label,
@@ -137,9 +159,11 @@ export const RECIPES: Recipe[] = [
     tool: 'arrange_region',
     group: 'structure',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       if (groups.action.length < 2) throw new Error('No action notes on the board.');
       return call('arrange_region', {
+        basedOn,
         nodeIds: groups.action.map((n) => n.id),
         layout: 'grid',
         label: 'Proposed actions',
@@ -153,6 +177,7 @@ export const RECIPES: Recipe[] = [
     tool: 'find_and_link',
     group: 'structure',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       const evidence = [...groups.quote, ...groups.metric];
       const links: { from: string; to: string; label: string }[] = [];
@@ -175,7 +200,11 @@ export const RECIPES: Recipe[] = [
         }
       }
       if (links.length === 0) throw new Error('No supporting evidence found to link.');
-      return call('find_and_link', { criterion: 'evidence supports hypothesis', links: links.slice(0, 10) });
+      return call('find_and_link', {
+        basedOn,
+        criterion: 'evidence supports hypothesis',
+        links: links.slice(0, 10),
+      });
     },
   },
   {
@@ -187,6 +216,7 @@ export const RECIPES: Recipe[] = [
     tool: 'find_and_link → arrange_region',
     group: 'structure',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       const KEYS: Record<string, RegExp> = {
         'team size': /team size|team-size|step 3|data users don't have|don.t have yet/i,
@@ -205,10 +235,11 @@ export const RECIPES: Recipe[] = [
       }
       if (links.length === 0) throw new Error('Nothing to connect — the hypotheses are gone.');
 
-      await call('find_and_link', { criterion: 'hypothesis is addressed by action', links });
+      await call('find_and_link', { basedOn, criterion: 'hypothesis is addressed by action', links });
 
       const linked = new Set(links.flatMap((l) => [l.from, l.to]));
       return call('arrange_region', {
+        basedOn,
         nodeIds: [...linked],
         layout: 'hierarchy',
         label: 'Hypotheses → fixes',
@@ -239,9 +270,11 @@ export const RECIPES: Recipe[] = [
     tool: 'summarize_cluster',
     group: 'author',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       if (groups.quote.length < 2) throw new Error('No quotes left to collapse.');
       return call('summarize_cluster', {
+        basedOn,
         nodeIds: groups.quote.map((n) => n.id),
         summary: 'Finding: users abandon when asked for information they do not have yet',
       });
@@ -269,6 +302,7 @@ export const RECIPES: Recipe[] = [
     tool: 'reorganize_board',
     group: 'whole board',
     run: async (call) => {
+      const basedOn = await premise(call);
       const groups = byCategory();
       const plan = [
         { label: 'Timeline', nodeIds: groups.event.map((n) => n.id), layout: 'timeline_horizontal' },
@@ -278,6 +312,7 @@ export const RECIPES: Recipe[] = [
       ].filter((g) => g.nodeIds.length > 0);
 
       return call('reorganize_board', {
+        basedOn,
         rationale:
           'Right now evidence, dates, theories and to-dos are interleaved. Separating them by ' +
           'kind makes the causal story readable left to right.',
