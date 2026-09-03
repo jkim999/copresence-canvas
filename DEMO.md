@@ -1,84 +1,93 @@
 # Demo script
 
-Target: **under 3:00**, public YouTube, audio on. Judges watch this before they open
-the URL, so the first twenty seconds have to carry the whole idea.
+Target **2:20**, hard ceiling 3:00. Public YouTube, audio on. Judges watch this before
+they open the URL, so the first fifteen seconds have to carry the whole idea without
+narration.
 
 ## Before you record
 
-- Window at ~1600×1000, panel open, browser zoom 100%.
-- Hit **Reset** for a clean board.
-- Decide up front: are you recording with a real WebMCP host (ChatGPT's in-app browser
-  / Chrome with `chrome://flags/#enable-webmcp-testing`) or with the in-page Agent
-  console? Both are legitimate — the console calls the identical handlers — but the
-  header pill will say which, and judges will read it. Prefer the real host for at
-  least one shot.
-- Practise the drag: you want to be *continuously* moving a note with your own cursor
-  the entire time the agent's cursor is working. Dead human hands kill the shot.
+- **Close every tab of the deployed site, then open one fresh.** A room that already
+  holds a board wins over a new tab's seed, so a stale tab keeps serving the old board.
+- Chrome with `chrome://flags/#enable-webmcp-testing` on. Check the header pill reads
+  *WebMCP live · document.modelContext · 11 tools* before you hit record. If it says
+  the console instead, that's still honest, but the pill is on camera and judges read it.
+- Window ~1600×1000, panel open, zoom 100%.
+- **Both windows visible at once.** Do not minimise the second seat — a hidden tab lands
+  every animation instantly and throttles its heartbeat, which kills the pacing and can
+  make the second seat look absent.
+- Practise the grab. You want to be *continuously* dragging a note the entire time the
+  agent is working. A still hand kills the shot.
 
-## Beats
+## 0:00 – 0:15 — no narration
 
-### 0:00 – 0:20 — the simultaneity shot. No narration.
+Start **Cluster by kind of evidence** (or ask the host: *"group the quotes together and
+the metrics together"*).
 
-Start the agent on **Cluster by kind of evidence** (or ask the host: *"group the
-interview quotes, the metrics and the hypotheses into three clusters"*).
+The instant the teal cursor appears, start dragging a note of your own and don't stop.
+Two labelled cursors on screen, both moving different notes, neither waiting. Let it
+play silently.
 
-The instant the teal cursor appears, **start dragging a note of your own and don't
-stop.** Both labelled cursors — teal **Agent**, terracotta **You** — are on screen at once,
-both moving different notes. Let it play silently. That image is the pitch.
+## 0:15 – 0:40 — say what it is
 
-### 0:20 – 0:40 — the negative case. Speak it plainly.
+> "That's a planning board — a software project, a week in. Twenty-eight notes.
+> An agent is rearranging it and I'm rearranging it, at the same time, and neither of us
+> is waiting for the other.
+>
+> None of this touches a server. Those are note positions in my browser's memory. No
+> backend has ever seen them, and there's no API that could reach them."
 
-> "None of this touches a server. The agent is reading and moving live canvas state
-> inside my browser — note positions that no backend has ever seen and no API could
-> reach. And it isn't taking turns with me. I never stopped working."
+Flash the **Tools** tab: eleven tools, live schemas, registered on the page.
 
-Show the **Tools** tab briefly: eleven tools, live JSON Schemas, registered through
-`document.modelContext.registerTool`.
+## 0:40 – 1:20 — the yield. This is the submission.
 
-### 0:40 – 2:00 — one strong task, start to finish.
+Run **Build the timeline**, or ask for one.
 
-Twenty-eight scattered notes from a real-shaped investigation: *why did onboarding
-conversion drop?* Interview quotes, metrics, dated events, hypotheses, proposed actions,
-all interleaved.
+While it's carrying notes, **grab one of them and hold it.** Say it as it happens:
 
-1. **Read** — `get_scene`. Say the number out loud: the whole board is about
-   **4 KB of JSON**, roughly a thousand tokens. Not a screenshot.
-2. **Timeline** — the agent finds every dated note and lays them out left to right.
-   Point out that it is *actually chronological*, not just spatial: the page parses
-   `Mar 3`, `Apr 15` out of the note text.
-3. **Link** — labelled edges drawn from evidence to the hypothesis it supports.
-4. **Provenance** — everything the agent touched is ringed in teal and stamped.
-   Toggle it off and on.
-5. **Undo agent** — one click, the agent's last move is gone and yours are untouched.
-6. **The consent beat** — ask for the whole board. This is the one destructive action,
-   so it stops and asks, showing its rationale and the groups it wants to build. Say:
-   *"one action asks. Everything else stays fluid — gating all of them would turn this
-   back into a chatbot."* Approve it, and let the board restructure.
+> "I just took a note out of its hands. Watch what it gets back."
 
-**The perception beat.** Grab a note and hold it, then run *"Notice what I am doing"*.
-The agent calls `get_human_activity`, sees the note in your hand, and writes a comment
-onto the board saying it will leave that one alone. Say: *"it isn't just acting while I
-work — it can see that I'm working."*
+Show the result on the ledger — `yielded 1 to you` — and read the model-facing line out
+loud:
 
-Somewhere in here, grab a note the agent is mid-way through carrying. It lets go
-immediately and permanently — and the tool result tells the agent it yielded, so it
-doesn't fight you for it.
+> "*The human took those notes while you were moving them. They are where the human put
+> them. Do not move them back unless asked.*
+>
+> That last sentence is the point. Without it the agent helpfully undoes me on its next
+> call. And a tool running on a server could never do this — my hand on that note existed
+> for about a second, in one tab, in memory. It was never persisted. There's nothing for
+> a backend to check."
 
-### 2:00 – 2:45 — why it matters.
+## 1:20 – 2:00 — the room
 
-> "Research synthesis, affinity mapping, systems design, retros — the work where the
-> meaning is in the arrangement, and the arrangement lives only in the browser. Those
-> canvases are exactly the surfaces a server-side agent can't touch and a screenshot
-> agent can't reason about. WebMCP is what makes a second pair of hands possible there
-> — not a second turn."
+Cut to both windows side by side.
 
-### Close before 3:00.
+> "Second tab is a second person, with an agent of their own. No room code, no account,
+> no server — peer to peer. Now the destructive one."
 
-Live URL, repo, MIT licence.
+Run **Reorganise the entire board**.
 
-## Things to avoid
+> "It doesn't ask me. It asks everybody who's on this board, and any one of them can
+> refuse. So can silence."
 
-- **Don't let the human idle.** If you stop dragging while the agent works, the video
-  reads as turn-taking and the entire differentiation is gone.
-- **Don't narrate the first twenty seconds.** Let the two cursors speak.
-- **Don't demo every tool.** One task, done fully, beats eight shown shallowly.
+Let it time out without answering in the other window. Show the result:
+`approved: false` — *nobody answered in time, so nothing was moved.*
+
+> "Ten seconds of nothing counts as no."
+
+Then do it again and approve it, and let the board restructure while you talk over it.
+
+## 2:00 – 2:20 — land it
+
+> "Everyone's building agents that can act on a live page. This is one that can be told
+> no by a hand on a note — and that only works because the tool is running inside the
+> session, next to the thing I'm touching. A server can't be interrupted by a hand, and
+> it can't ask a room. This one is in the room."
+
+## If a beat fails on camera
+
+- **No yield** — your hand landed after the tween finished. Re-run the recipe and grab
+  earlier; the notes move in nearest-neighbour order, so grab one near the start.
+- **Consent dialog doesn't appear** — you're alone on the board. Alone, whole-board
+  changes just apply. Check the second window is open and visible.
+- **Second seat missing from the roster** — it was backgrounded long enough to be dropped.
+  Bring it forward and give it a few seconds.
