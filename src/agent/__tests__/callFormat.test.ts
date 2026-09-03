@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatArgs, summarizeResult } from '../callFormat';
+import { formatArgs, refusalNote, summarizeResult } from '../callFormat';
 
 describe('formatArgs', () => {
   it('renders the ids the agent chose, abbreviating a long list', () => {
@@ -191,5 +191,34 @@ describe('an act that could not find what it was sent after', () => {
   it('stays quiet when every id resolved', () => {
     const line = summarizeResult('arrange_region', { moved: 3, layout: 'grid', unknownIds: [] });
     expect(line).not.toMatch(/unknown/);
+  });
+});
+
+describe('the line the agent was actually told', () => {
+  it('shows a refusal, which is the whole point of the call', () => {
+    expect(refusalNote({ refused: 'stale', note: 'Refused: the board changed.' }))
+      .toBe('Refused: the board changed.');
+  });
+
+  it('shows what it was told after a hand took a note off it', () => {
+    expect(refusalNote({ moved: 5, yieldedToHuman: ['n_03'], note: 'The human took those notes.' }))
+      .toBe('The human took those notes.');
+  });
+
+  it('shows the note when the room declined', () => {
+    expect(refusalNote({ approved: false, message: 'Nobody answered in time.' }))
+      .toBe('Nobody answered in time.');
+  });
+
+  it('stays quiet when nothing was refused, so the ledger is not a wall of prose', () => {
+    expect(refusalNote({ moved: 6, yieldedToHuman: [], note: 'Coordinates are canvas units.' }))
+      .toBeNull();
+    expect(refusalNote({ nodes: [], asOf: 3, note: 'Keep asOf.' })).toBeNull();
+  });
+
+  it('is not fooled by a result that is not one', () => {
+    expect(refusalNote(null)).toBeNull();
+    expect(refusalNote('refused')).toBeNull();
+    expect(refusalNote({ refused: 'stale' })).toBeNull();
   });
 });

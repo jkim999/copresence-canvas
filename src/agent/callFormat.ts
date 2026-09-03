@@ -40,6 +40,34 @@ const count = (v: unknown): number =>
   Array.isArray(v) ? v.length : typeof v === 'number' ? v : 0;
 
 /**
+ * The sentence the agent was actually handed, when it was told no.
+ *
+ * Every tool returns prose for the model, and almost all of it is housekeeping
+ * nobody watching needs to read. Three results are different: the page refused,
+ * a hand took a note off it, or the room declined. In those three the prose *is*
+ * the product — "do not move them back unless asked" is the line the whole
+ * design turns on, and it was reaching the model and nobody else. A viewer
+ * could see that five notes moved instead of six and had to be told, out loud
+ * and unverifiably, what the agent had been told about the sixth.
+ *
+ * Silent everywhere else on purpose. A ledger that printed every note would
+ * bury the three that matter under `get_scene` explaining its coordinate
+ * system.
+ */
+export const refusalNote = (result: unknown): string | null => {
+  if (result === null || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
+  const say = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim() !== '' ? v : null;
+
+  if (r.refused !== undefined) return say(r.note);
+  if (Array.isArray(r.yieldedToHuman) && r.yieldedToHuman.length > 0) return say(r.note);
+  if (r.stoppedByHuman === true) return say(r.note);
+  if (r.approved === false) return say(r.message) ?? say(r.note);
+  return null;
+};
+
+/**
  * One line of consequence per tool. Deliberately names what the human cares
  * about — including the notes the agent gave back because they grabbed them.
  */

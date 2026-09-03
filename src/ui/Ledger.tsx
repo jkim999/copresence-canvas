@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useHostStore } from '../agent/webmcp';
-import { formatArgs, summarizeResult } from '../agent/callFormat';
+import { formatArgs, refusalNote, summarizeResult } from '../agent/callFormat';
 import { crediting } from '../agent/credit';
 import { usePeerStore } from '../sync/peers';
 
@@ -76,6 +76,11 @@ export const Ledger = () => {
                 ? `error: ${c.error}`
                 : `→ ${c.by ? (c.out ?? '…') : summarizeResult(c.tool, c.result)}`}
             </span>
+            {/* Only a refusal speaks here. It is the one part of a result the
+                model is told and the room otherwise is not. */}
+            {!c.by && !c.error && refusalNote(c.result) && (
+              <span className="told">{refusalNote(c.result)}</span>
+            )}
           </div>
         );
       })}

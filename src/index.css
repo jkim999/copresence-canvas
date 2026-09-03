@@ -1200,6 +1200,24 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .ledger-row.live .out { color: var(--agent-lift); }
 .ledger-row.err .out { color: var(--alert-lift); }
 
+/* What the agent was told, on its own line under the call that told it.
+   The rest of the ledger is one clipped line per call because a signature is
+   scannable and prose is not — but a refusal has to be read, not scanned, so
+   this is the one thing here allowed to wrap and take the room it needs. */
+.ledger-row:has(.told) { flex-wrap: wrap; }
+.ledger-row .told {
+  flex: 1 0 100%;
+  margin-top: 2px;
+  padding-left: 9px;
+  border-left: 2px solid var(--alert, var(--agent-lift));
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+  text-wrap: pretty;
+}
+
 /* ============================================================== responsive */
 /* The wordmark yields before anything functional does. */
 .brand { min-width: 0; }
