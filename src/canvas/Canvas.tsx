@@ -278,7 +278,13 @@ export const Canvas = ({ children }: CanvasProps) => {
         minZoom={0.15}
         maxZoom={2.2}
         selectionOnDrag
-        panOnScroll
+        // Double-click is how you add a note, so React Flow must not also read
+        // it as zoom — the note landed and the board jumped under it at once.
+        zoomOnDoubleClick={false}
+        // The wheel zooms rather than pans. On an infinite board with no edges
+        // to scroll to, panning by wheel is motion without a destination, and
+        // it left no way to zoom but the buttons in the corner.
+        zoomOnScroll
         nodesConnectable={false}
         deleteKeyCode={null}
       >
