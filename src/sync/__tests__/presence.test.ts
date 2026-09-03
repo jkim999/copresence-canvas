@@ -410,3 +410,65 @@ describe('what everyone is pointing at', () => {
     expect(selectionsOf([seat('h_a', [])])).toEqual({});
   });
 });
+
+/**
+ * One seat, one entry — the page that is still open.
+ *
+ * A tab that reloads keeps its seat but arrives under a fresh awareness client,
+ * and the client it left behind sits in the room until the presence TTL expires
+ * it. Goodbye is sent on `beforeunload` and does not reliably get out, because
+ * the tab is being torn down as it posts.
+ *
+ * That is not a cosmetic ghost. Consent for a whole-board change is put to
+ * everyone present and silence counts as a refusal, so a person who had
+ * reloaded twice could not reorganise their own board: two earlier versions of
+ * themselves vetoed it by not answering. Observed live, twice — "Nobody
+ * answered on Umber, Fennel\u2019s screen, so the board was left alone."
+ */
+describe('a seat that reloaded', () => {
+  const room = () => new Awareness(new Y.Doc());
+
+  const stateFor = (actor: string) => ({
+    actor,
+    name: 'Seat',
+    holding: [],
+    agent: null,
+    agentHolding: [],
+    selected: [],
+    cursor: null,
+    doing: null,
+  });
+
+  /** Put a second client, with its own id, into one awareness. */
+  const alsoPresent = (awareness: Awareness, clientId: number, actor: string) => {
+    awareness.states.set(clientId, stateFor(actor));
+    awareness.meta.set(clientId, { clock: 1, lastUpdated: Date.now() });
+  };
+
+  it('is one peer, not two, when the same seat is present twice', () => {
+    const a = room();
+    publish(a, stateFor('h_alex'));
+    alsoPresent(a, 4242, 'h_bo');
+    alsoPresent(a, 4243, 'h_bo');
+
+    expect(peersOf(a).map((p) => p.actor)).toEqual(['h_bo']);
+  });
+
+  it('does not count an earlier load of your own tab as somebody else', () => {
+    const a = room();
+    publish(a, stateFor('h_alex'));
+    // The client this tab left behind when it reloaded: same seat, dead page.
+    alsoPresent(a, 4242, 'h_alex');
+
+    expect(peersOf(a)).toEqual([]);
+  });
+
+  it('still lists everybody who is actually a different seat', () => {
+    const a = room();
+    publish(a, stateFor('h_alex'));
+    alsoPresent(a, 4242, 'h_bo');
+    alsoPresent(a, 4243, 'h_cass');
+
+    expect(peersOf(a).map((p) => p.actor).sort()).toEqual(['h_bo', 'h_cass']);
+  });
+});

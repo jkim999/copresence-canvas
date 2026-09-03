@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCAL_AGENT, LOCAL_HUMAN, agentId, humanId, isAgent, kindOf, me, myAgent, nameOf, seatName, takeSeat, useActorStore } from '../actors';
 
 const reset = () => useActorStore.getState().reset();
@@ -150,5 +150,57 @@ describe('minting an id', () => {
       vi.useRealTimers();
       vi.resetModules();
     }
+  });
+});
+
+/**
+ * A reload is the same seat coming back, not a new person arriving.
+ *
+ * Every load used to mint a fresh id, so reloading left the previous one in the
+ * room for the full presence TTL. That is not a cosmetic ghost: consent is put
+ * to everyone present and silence counts as a refusal, so a person who had
+ * reloaded twice could not reorganise their own board — two versions of
+ * themselves vetoed it by not answering. Seen live, twice, as "Nobody answered
+ * on Umber, Fennel\u2019s screen, so the board was left alone."
+ *
+ * sessionStorage is the right scope exactly: it survives a reload, it is not
+ * shared with a second tab, and it dies with the tab. A seat is a tab.
+ */
+describe('the seat a tab keeps', () => {
+  const store = new Map<string, string>();
+
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    useActorStore.getState().reset();
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('comes back the same across a reload', () => {
+    const first = takeSeat();
+    const firstAgent = myAgent();
+    useActorStore.getState().reset();
+    expect(takeSeat()).toBe(first);
+    // The pair too: an agent filed under a new id every reload would scatter one
+    // seat's work across several names in the record.
+    expect(myAgent()).toBe(firstAgent);
+  });
+
+  it('is a different seat in a tab that has its own storage', () => {
+    const first = takeSeat();
+    store.clear();
+    useActorStore.getState().reset();
+    expect(takeSeat()).not.toBe(first);
+  });
+
+  it('still works where there is no storage to keep it in', () => {
+    vi.stubGlobal('sessionStorage', undefined);
+    useActorStore.getState().reset();
+    expect(takeSeat()).toMatch(/^h_/);
   });
 });

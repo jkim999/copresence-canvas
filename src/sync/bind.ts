@@ -374,10 +374,17 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     awareness.destroy();
     doc.destroy();
     globalThis.removeEventListener?.('beforeunload', stop);
+    globalThis.removeEventListener?.('pagehide', stop);
   };
 
   // A closed tab must not leave a note frozen under a hand that has gone.
+  // Both, because neither is reliable alone: `beforeunload` does not fire on a
+  // discarded or mobile tab, and a goodbye posted during either is racing the
+  // teardown. Whichever gets out first frees this seat's notes immediately
+  // rather than after the presence TTL; a peer that hears neither now folds the
+  // stale client into the live one instead of treating it as a second person.
   globalThis.addEventListener?.('beforeunload', stop);
+  globalThis.addEventListener?.('pagehide', stop);
 
   return { room, doc, awareness, stop };
 };

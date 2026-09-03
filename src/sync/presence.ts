@@ -182,19 +182,43 @@ const stillHere = (awareness: Awareness, clientId: number, now: number): boolean
   return now - meta.lastUpdated <= PRESENCE_TTL_MS;
 };
 
+/**
+ * One seat, one entry — the page that is still open.
+ *
+ * A tab keeps its seat across a reload but comes back under a fresh awareness
+ * client, and the client it left behind sits in the room until the presence TTL
+ * expires it. Goodbye goes out on `beforeunload`, which does not reliably get
+ * out: the tab is being torn down as it posts.
+ *
+ * Left alone, that is not a cosmetic duplicate. Consent for a whole-board
+ * change is put to everyone present and silence counts as a refusal, so a
+ * person who had reloaded twice could not reorganise their own board — two
+ * earlier versions of themselves vetoed it by never answering, and the refusal
+ * named them. So the freshest client wins for each seat, and a seat that is
+ * your own is never a peer, however many dead pages of it are still listed.
+ */
 const statesOf = (
   awareness: Awareness,
   skipLocal: boolean,
   now: number = Date.now(),
 ): Presence[] => {
-  const out: Presence[] = [];
+  const mine = skipLocal ? (readPresence(awareness.getLocalState())?.actor ?? null) : null;
+  const freshest = new Map<ActorId, { at: number; state: Presence }>();
+
   awareness.getStates().forEach((raw, clientId) => {
     if (skipLocal && clientId === awareness.clientID) return;
     if (!stillHere(awareness, clientId, now)) return;
     const p = readPresence(raw);
-    if (p) out.push(p);
+    if (p === null) return;
+    // A page this very tab left behind. It cannot answer anything.
+    if (mine !== null && p.actor === mine) return;
+
+    const at = awareness.meta.get(clientId)?.lastUpdated ?? 0;
+    const held = freshest.get(p.actor);
+    if (held === undefined || at > held.at) freshest.set(p.actor, { at, state: p });
   });
-  return out;
+
+  return [...freshest.values()].map((entry) => entry.state);
 };
 
 /**

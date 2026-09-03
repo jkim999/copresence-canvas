@@ -133,7 +133,8 @@ interface ActorState {
   register: (actor: Actor) => void;
   /** Register someone, choosing their colour for them. */
   join: (actor: Omit<Actor, 'color'>) => Actor;
-  setMe: (id: ActorId) => void;
+  /** `keepAgent` seats a returning tab beside the agent it already had. */
+  setMe: (id: ActorId, keepAgent?: ActorId) => void;
   nameOf: (id: ActorId) => string;
   reset: () => void;
 }
@@ -153,10 +154,13 @@ export const useActorStore = create<ActorState>((set, get) => ({
     return full;
   },
 
-  setMe: (id) => {
+  setMe: (id, keepAgent) => {
     // A second person must not file their agent's work under the first person's
-    // agent, so taking an identity mints a paired agent alongside it.
-    const paired = agentId();
+    // agent, so taking an identity mints a paired agent alongside it — unless
+    // the tab is returning to a seat it already had, in which case the pair
+    // returns with it. An agent filed under a new id every reload would scatter
+    // one seat's work across several names in the record.
+    const paired = keepAgent ?? agentId();
     set((s) => ({
       me: id,
       myAgent: paired,
@@ -191,11 +195,60 @@ export const useActorStore = create<ActorState>((set, get) => ({
  * that joins a room takes its own seat, and a paired agent comes with it — which
  * is the whole point of two people each bringing their own.
  */
+/**
+ * Where a tab keeps the seat it took, so a reload is the same person returning.
+ *
+ * Every load used to mint a fresh id, which left the previous one sitting in
+ * the room for the full presence TTL. That is not a cosmetic ghost. Consent for
+ * a whole-board change is put to everyone present and silence counts as a
+ * refusal, so somebody who had reloaded twice could not reorganise their own
+ * board: two earlier versions of themselves vetoed it by not answering, and the
+ * refusal named them.
+ *
+ * sessionStorage is exactly the right scope. It survives a reload, a second tab
+ * gets its own, and it dies with the tab — which is the same life a seat has.
+ */
+const SEAT_KEY = 'copresence.seat';
+
+interface KeptSeat {
+  human: ActorId;
+  agent: ActorId;
+}
+
+const keptSeat = (): KeptSeat | null => {
+  // Storage can be absent (tests, a worker) or throw outright (a browser set to
+  // block site data), and neither is a reason to fail to seat somebody.
+  try {
+    const raw = sessionStorage?.getItem(SEAT_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { human, agent } = parsed as Record<string, unknown>;
+    // Validated rather than trusted: this came back from outside the program,
+    // and an id of the wrong shape would seat somebody as the wrong kind.
+    if (typeof human !== 'string' || !human.startsWith(HUMAN_PREFIX)) return null;
+    if (typeof agent !== 'string' || !agent.startsWith(AGENT_PREFIX)) return null;
+    return { human, agent };
+  } catch {
+    return null;
+  }
+};
+
+const keepSeat = (seat: KeptSeat): void => {
+  try {
+    sessionStorage?.setItem(SEAT_KEY, JSON.stringify(seat));
+  } catch {
+    // A tab that cannot remember its seat simply takes a new one next time.
+  }
+};
+
 export const takeSeat = (): ActorId => {
-  const id = humanId();
+  const kept = keptSeat();
+  const id = kept?.human ?? humanId();
   const store = useActorStore.getState();
   store.register({ id, kind: 'human', name: 'You', color: SEATS.human[0] });
-  store.setMe(id);
+  store.setMe(id, kept?.agent);
+  keepSeat({ human: id, agent: useActorStore.getState().myAgent });
   return id;
 };
 
