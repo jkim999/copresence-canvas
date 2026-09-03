@@ -22,8 +22,9 @@ server could have known.
 - **Two windows, both visible from 1:05 on.** Never minimise the second seat — a hidden tab
   lands every animation instantly and throttles its heartbeat, so it can look absent.
 - Practise the grab. You want to be *continuously* dragging while the agent works.
-- **Don't touch "Link evidence to hypotheses" or "Build the hypothesis tree."** Both throw
-  on this board — their keyword tables still describe the board this demo replaced.
+- Every panel button now runs on this board — a test asserts it. `Link evidence to risks`
+  and `Build the fix tree` used to throw; their keyword tables described the board this
+  demo replaced.
 
 ## 0:00 – 0:15 — no narration
 
@@ -66,35 +67,42 @@ doesn't move either.
 
 ## 1:05 – 1:50 — refusal two: reality
 
-Second window, side by side. This beat is the one to get right; it's the least flashy and
-the most general.
+Second window, side by side. This beat is the least flashy and the most general; it's
+three button presses and they have to be in this order.
 
 > "Second tab is a second person with an agent of their own. No room code, no account, no
 > server — peer to peer, same board."
 
-**In window one**, start an act and let it read the board — the ledger shows `get_scene`.
-**In window two**, while that's still on screen, run **Lay the actions out as a grid** so
-seat two moves notes that seat one's plan named. Then let window one's write land.
+1. **Window one: press "Read the board."** Ledger shows `get_scene`. That's the agent
+   looking, and the bookmark it keeps.
+2. **Window two: run "Build the timeline"** — or drag the risk notes yourself. Either way
+   seat two moves notes seat one just read.
+3. **Window one: press "Act on what I read a moment ago."**
 
-> "Here's what actually breaks agents on a shared page. It read the board, it took a couple
-> of seconds to decide — and in those seconds somebody else moved the notes it was about to
-> rearrange. So it's writing to a board that no longer exists."
+> "Here's what actually breaks agents on a shared page. It read the board, it took a few
+> seconds to decide — and in those seconds somebody else moved the notes it was about to
+> rearrange. It's writing to a board that no longer exists."
 
-Show the refusal on the ledger — `refused · 2 notes changed underneath` — and read the
-result:
+The ledger now reads the whole story in three lines, and the last one is
+`refused · 5 notes changed underneath`. Read the result:
 
-> "*Refused: you planned this against a board that has since changed. Ochre's agent moved
-> and grouped 2 of the notes you named. Nothing was changed, so their work is intact. Call
+> "*Refused: you planned this against a board that has since changed. Olive's agent moved
+> 5 of the notes you named. Nothing was changed, so their work is intact. Call
 > what_changed, then decide again.*
 >
 > Nothing moved. It named who got there first, and it told the model to look again rather
 > than push harder. That's compare-and-swap — except a backend gets it free from its
-> database, and a page has to keep the bookmark itself. The read happened *here*, in this
-> tab, against a scene in memory that the other tab is mutating. No server holds that
-> version, because there is no server.
+> database, and a page has to keep the bookmark itself. The read happened *here*, against a
+> scene in memory that the other tab is mutating. No server holds that version, because
+> there is no server.
 >
 > And the grip needs my hand to land inside about half a second. This one fires every time
 > the model thinks for longer than the room takes to change — which is always."
+
+**Why that button exists:** every other recipe reads and writes in one press, so nothing
+can happen in between and the gate can never fire. This one keeps the two halves apart,
+which is what a model does across a turn. With a real model driving, you don't need it —
+the thinking time is real.
 
 ## 1:50 – 2:25 — refusal three: the room
 
@@ -128,9 +136,9 @@ Run it again and approve, and let the board restructure while you talk over it.
 - **No yield** — your hand landed after that note was already down. Check the URL still has
   `?pace=2`, and grab while the cursor is *travelling*, not after it arrives. At pace 2 you
   have roughly a second and a half per note.
-- **No refusal on the staleness beat** — the two seats have to overlap on *notes*, not just
-  on the board. Seat two must move notes seat one's act named, and seat one must have read
-  before seat two moved. Check the ledger in window one shows its `get_scene` first.
+- **No refusal on the staleness beat** — the order is everything. Window one must read
+  *first*, then seat two moves *those* notes, then window one acts. If the ledger's last
+  two rows aren't the peer's move followed by your refusal, start the beat again.
 - **Refusal says "board unverifiable"** — the journal no longer reaches back to the
   bookmark, so the gate failed closed. Honest, but not the shot you want. Reload both seats
   and keep the beat short.

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RECIPES } from '../recipes';
 import { useSceneStore } from '../../state/sceneStore';
+import { useHostStore } from '../webmcp';
 
 /**
  * The console is not a shortcut around the rules — it is the same agent with
@@ -12,18 +13,10 @@ import { useSceneStore } from '../../state/sceneStore';
  * quietly writing blind while the README explains why that is unsafe.
  */
 
-const WRITES_ON_EXISTING = ['timeline', 'affinity', 'matrix', 'summarize', 'reorg'];
-
-/**
- * `link` and `tree` write on existing notes too, and cite their premise the
- * same way — but neither reaches its write on the seeded board, because their
- * keyword tables still describe the onboarding board this demo replaced. They
- * are excluded here rather than asserted-and-skipped so the omission is a
- * stated fact rather than a test that quietly passes on nothing.
- */
-const DEAD_ON_THE_SEED_BOARD = ['link', 'tree'];
+const WRITES_ON_EXISTING = ['timeline', 'affinity', 'matrix', 'link', 'tree', 'summarize', 'reorg'];
 
 beforeEach(() => {
+  useHostStore.setState({ calls: [] });
   useSceneStore.getState().resetScene();
 });
 
@@ -43,10 +36,30 @@ const trace = async (id: string) => {
   return calls;
 };
 
-describe('the recipes that cannot run on the board they ship with', () => {
-  it.each(DEAD_ON_THE_SEED_BOARD)('still fails before it writes: %s', async (id) => {
-    const writes = (await trace(id)).filter((c) => c.name !== 'get_scene');
-    expect(writes).toEqual([]);
+/**
+ * Every button in the panel is a button a judge will press. Two of them threw
+ * on the board they ship with — their keyword tables described the onboarding
+ * board this demo replaced — and an error where a demo should be is worse than
+ * a feature that was never offered.
+ */
+describe('every recipe the panel offers', () => {
+  it.each(RECIPES.map((r) => r.id))('runs on the board it ships with: %s', async (id) => {
+    const recipe = RECIPES.find((r) => r.id === id)!;
+    // `lastread` deliberately requires a board read on an earlier press — that
+    // gap is the whole point of it — so give it the precondition it states.
+    const host = useHostStore.getState();
+    host.completeCall(host.recordCall('get_scene', {}), { asOf: 3, nodes: [] });
+    let threw: string | null = null;
+    await recipe
+      .run(async (name) =>
+        name === 'get_scene'
+          ? { asOf: 7, nodes: useSceneStore.getState().scene.nodes }
+          : { holdingRightNow: [], recentlyTouched: [] },
+      )
+      .catch((e: Error) => {
+        threw = e.message;
+      });
+    expect(threw).toBeNull();
   });
 });
 
