@@ -129,6 +129,10 @@ export const Panel = ({ tools, tab, onTab }: Props) => {
                     className={`recipe ${running === r.id ? 'running' : ''}`}
                     onClick={() => runRecipe(r)}
                     disabled={Boolean(running)}
+                    // The blurb below is dropped when the panel is too short to
+                    // hold eleven of these, so it has to survive somewhere the
+                    // pointer can still reach it.
+                    title={r.blurb}
                   >
                     <span className="head">
                       <strong>{r.title}</strong>

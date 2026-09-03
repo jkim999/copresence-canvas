@@ -1198,6 +1198,21 @@ button { font: inherit; cursor: pointer; color: inherit; }
 @media (max-width: 1080px) {
   .panel { width: 304px; }
 }
+
+/* Two windows side by side is the shape this page is meant to be seen in, and
+   at that width the console's prose wraps to three lines a card. Eleven acts
+   then no longer fit, so the one you want is below the fold and has to be
+   found by scrolling — which, mid-demonstration, is the whole console failing
+   at the only job it has. The blurbs are for a first read; the titles and the
+   tool names are what you press. Below either threshold the second survives
+   and the first moves to the tooltip, so nothing is actually lost. */
+@media (max-width: 1180px), (max-height: 820px) {
+  .recipe p { display: none; }
+  .recipe { padding: 6px 10px; }
+  .recipe .head { margin-bottom: 3px; }
+  .group + .group { margin-top: 14px; }
+  .panel-body { padding: 12px 14px 16px; }
+}
 @media (max-width: 860px) {
   .topbar { padding-left: 12px; gap: 6px; }
   .topbar .label { display: none; }
