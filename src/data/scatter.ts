@@ -28,14 +28,38 @@ export interface ScatterOptions {
   columns?: number;
 }
 
+/**
+ * How far a note can drift from where its order would put it.
+ *
+ * Notes arrive grouped by kind, and a plain jittered grid therefore laid them
+ * out in bands — quotes along one row, dates along the next — which is a
+ * smudged spreadsheet rather than a board somebody has been working on. A full
+ * shuffle overcorrects into confetti, where nothing near anything means
+ * anything. A window of a row-and-a-bit breaks the bands while leaving like
+ * near like, which is what a real board drifts into on its own.
+ */
+const DRIFT = 7;
+
+/** Windowed Fisher-Yates: every point moves, none of them moves far. */
+const drift = (points: { x: number; y: number }[], rand: () => number): { x: number; y: number }[] => {
+  const out = [...points];
+  for (let i = out.length - 1; i > 0; i--) {
+    const lo = Math.max(0, i - DRIFT);
+    const j = lo + Math.floor(rand() * (i - lo + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
+
 /** Poisson-ish positions over a loose grid, jittered so nothing looks gridded. */
 export const scatter = (
   count: number,
   { seed = DEFAULT_SEED, columns = 6 }: ScatterOptions = {},
 ): { x: number; y: number }[] => {
   const rand = mulberry32(seed);
-  return Array.from({ length: count }, (_, i) => ({
+  const points = Array.from({ length: count }, (_, i) => ({
     x: Math.round((i % columns) * COL_W + (rand() - 0.5) * JITTER_X),
     y: Math.round(Math.floor(i / columns) * ROW_H + (rand() - 0.5) * JITTER_Y),
   }));
+  return drift(points, rand);
 };
