@@ -121,6 +121,7 @@ describe('one seat, one name', () => {
           agentHolding: [],
           selected: [],
           cursor: null,
+          agentCursor: null,
           doing: null,
         },
       ],

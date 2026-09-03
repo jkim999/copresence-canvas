@@ -25,6 +25,7 @@ const peer = (actor: string, holding: string[] = [], agent: string | null = null
   agentHolding: [],
   selected: [],
   cursor: null,
+  agentCursor: null,
 });
 
 beforeEach(() => {

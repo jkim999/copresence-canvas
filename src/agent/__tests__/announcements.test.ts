@@ -19,6 +19,7 @@ const peer = (over: Partial<Presence> = {}): Presence => ({
   agentHolding: [],
   selected: [],
   cursor: null,
+  agentCursor: null,
   doing: null,
   ...over,
 });

@@ -58,6 +58,16 @@ export interface Presence {
   selected: string[];
   cursor: Cursor | null;
   /**
+   * Where this seat's agent is, while it is working.
+   *
+   * A second cursor rather than a second peer, because an agent is not another
+   * client — it has no tab of its own, and it lives and dies with the seat it
+   * belongs to. Presence rather than the document, for the same reason a grip
+   * is: where a hand is, is a fact about a tab, and it must die with it. A tab
+   * that closes mid-arrange should not leave a cursor standing on the board.
+   */
+  agentCursor: Cursor | null;
+  /**
    * What this seat's agent is about to do, while it is doing it.
    *
    * Ephemeral on purpose. A tab that crashes mid-arrange stops heartbeating and
@@ -134,6 +144,7 @@ export const readPresence = (raw: unknown): Presence | null => {
     agentHolding: ids(r.agentHolding),
     selected: ids(r.selected),
     cursor: cursorOf(r.cursor),
+    agentCursor: cursorOf(r.agentCursor),
     doing: intentOf(r.doing),
   };
 };
@@ -333,6 +344,7 @@ const BLANK: Presence = {
   agentHolding: [],
   selected: [],
   cursor: null,
+  agentCursor: null,
   doing: null,
 };
 

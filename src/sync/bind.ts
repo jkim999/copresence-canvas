@@ -18,6 +18,7 @@ import { clearPendingShare, shareWasDisplaced } from '../data/pendingShare';
 import { openSession, roomFromLocation, type Session } from './channel';
 import { setConsentTransport, useConfirmStore } from '../agent/confirm';
 import { useIntentStore } from '../agent/intent';
+import { useCursorStore } from '../agent/motion';
 import { resetJournal } from '../state/journal';
 import { completeRemoteCall, recordRemoteCall, setCallTransport } from '../agent/webmcp';
 
@@ -107,6 +108,38 @@ let broadcasting: Awareness | null = null;
 export const reportCursor = (cursor: Cursor | null): void => {
   if (!broadcasting) return;
   publish(broadcasting, { actor: me(), name: seatName(me()), agent: myAgent(), cursor });
+};
+
+/**
+ * How often this seat's agent tells the room where it is.
+ *
+ * A tween moves it every frame, and sixty states a second onto a channel every
+ * peer parses is a cost paid for motion nobody can perceive. The same sample
+ * rate the pointer already uses: often enough to read as continuous, rare
+ * enough to be free.
+ */
+const AGENT_SAMPLE_MS = 45;
+let lastAgentReport = 0;
+
+/**
+ * Tell the room where this tab's *agent* is.
+ *
+ * Sampled, except when it goes away — a dropped frame mid-travel costs nothing,
+ * but a dropped disappearance leaves the agent's body standing on somebody
+ * else's board after it has stopped working, claiming a position it does not
+ * hold. Endings are published unconditionally; only movement is sampled.
+ */
+export const reportAgentCursor = (cursor: Cursor | null): void => {
+  if (!broadcasting) return;
+  const now = Date.now();
+  if (cursor !== null && now - lastAgentReport < AGENT_SAMPLE_MS) return;
+  lastAgentReport = now;
+  publish(broadcasting, {
+    actor: me(),
+    name: seatName(me()),
+    agent: myAgent(),
+    agentCursor: cursor,
+  });
 };
 
 export const connectBoard = (options: ConnectOptions = {}): Connection => {
@@ -330,6 +363,19 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
   publish(awareness, { actor: me(), name: seatName(me()), agent: myAgent() });
   broadcasting = awareness;
 
+  /**
+   * This seat's agent, put on everyone else's board while it works.
+   *
+   * Subscribed from here rather than published by the choreography, because
+   * motion belongs to the agent layer and knows nothing about a room — and a
+   * board with no connection must animate exactly as it always did. The
+   * dependency points one way: sync watches the agent, never the reverse.
+   */
+  const stopAgentCursor = useCursorStore.subscribe((state, prev) => {
+    if (state.visible === prev.visible && state.x === prev.x && state.y === prev.y) return;
+    reportAgentCursor(state.visible ? { x: state.x, y: state.y } : null);
+  });
+
   // A whole-board change is everyone's business, so the question goes to
   // everyone. Injected rather than imported so a board with no connection
   // behaves exactly as it did when there was only ever one person on it.
@@ -363,6 +409,7 @@ export const connectBoard = (options: ConnectOptions = {}): Connection => {
     if (live) flushScene();
     doc.off('update', onDoc);
     awareness.off('change', pullPresence);
+    stopAgentCursor();
     // Says goodbye on the way out, which is what frees anything still in hand.
     session.close();
     setConsentTransport(null);

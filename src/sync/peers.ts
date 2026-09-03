@@ -104,18 +104,46 @@ export const setPeers = (incoming: Presence[]): void => {
 export interface PeerCursor {
   actor: ActorId;
   name: string;
+  /** Which of the pair this body is, so it can be drawn in its own colours. */
+  kind: 'human' | 'agent';
   point: Cursor;
 }
 
 export const usePeerCursorStore = create<{ cursors: PeerCursor[] }>(() => ({ cursors: [] }));
 
 const cursorSignature = (cursors: PeerCursor[]): string =>
-  cursors.map((c) => `${c.actor}:${Math.round(c.point.x)}:${Math.round(c.point.y)}`).sort().join('|');
+  cursors
+    .map((c) => `${c.actor}:${c.kind}:${Math.round(c.point.x)}:${Math.round(c.point.y)}`)
+    .sort()
+    .join('|');
 
+/**
+ * Every body a peer puts on the board: their hand, and the agent beside it.
+ *
+ * Filed under its own actor rather than the seat's, because the agent's cursor
+ * has to be distinguishable from the person's wherever a cursor is keyed — and
+ * because a peer whose agent is working while their own pointer is elsewhere is
+ * the ordinary case here, not an edge one.
+ *
+ * An agent the peer has not named is not drawn at all. A cursor with no actor
+ * behind it could not be attributed, and an unattributable hand on this board
+ * is exactly the thing every other surface here exists to prevent.
+ */
 export const setPeerCursors = (peers: Presence[]): void => {
-  const cursors = peers
-    .filter((p): p is Presence & { cursor: Cursor } => p.cursor !== null)
-    .map((p) => ({ actor: p.actor, name: p.name, point: p.cursor }));
+  const cursors: PeerCursor[] = [];
+  for (const p of peers) {
+    if (p.cursor !== null) {
+      cursors.push({ actor: p.actor, name: p.name, kind: 'human', point: p.cursor });
+    }
+    if (p.agentCursor !== null && p.agent !== null) {
+      cursors.push({
+        actor: p.agent,
+        name: `${p.name}\u2019s agent`,
+        kind: 'agent',
+        point: p.agentCursor,
+      });
+    }
+  }
   if (cursorSignature(usePeerCursorStore.getState().cursors) === cursorSignature(cursors)) return;
   usePeerCursorStore.setState({ cursors });
 };

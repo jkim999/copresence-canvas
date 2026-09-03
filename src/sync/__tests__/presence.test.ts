@@ -64,6 +64,7 @@ describe('reading a peer state off the wire', () => {
       agentHolding: ['n_1'],
       selected: [],
       cursor: { x: 1, y: 2 },
+      agentCursor: { x: 30, y: 40 },
       doing: null,
     };
 
@@ -392,6 +393,7 @@ describe('what everyone is pointing at', () => {
     agentHolding: [],
     selected,
     cursor: null,
+    agentCursor: null,
     doing: null,
   });
 
@@ -436,6 +438,7 @@ describe('a seat that reloaded', () => {
     agentHolding: [],
     selected: [],
     cursor: null,
+    agentCursor: null,
     doing: null,
   });
 
