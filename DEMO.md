@@ -57,25 +57,31 @@ Say nothing over this one.
 
 ### Say what it is — 50s
 
-Open the **Tools** tab and leave it up. Say this loosely — it should sound like you
-explaining it to someone, not reading it.
+Open the **Tools** tab and leave it up. Don't read this. Read it twice, then say it your
+way — the point is to sound like you're explaining it to one person, not presenting.
 
-> "Okay so — Notion's AI will edit a doc while you're sitting in it. That's real, that
-> works. But that's their agent, on their servers, running their code.
+> "So — Notion's AI can edit a doc while you're sitting in it. That already works. But
+> that's Notion's agent, inside Notion, on their servers.
 >
-> What I wanted to know was what happens when the agent isn't yours. Someone turns up with
-> ChatGPT, and your page has to decide what it's actually willing to let them do.
+> What I wanted to see was what happens when the agent isn't yours. You turn up with
+> ChatGPT, and my page has to work out what it'll let you do.
 >
-> So — sticky notes. React, Yjs syncing the two windows, no backend at all.
+> It's just sticky notes. React, Yjs between the two windows, no backend — there's nothing
+> behind it.
 >
-> Eleven tools on `document.modelContext.registerTool`. Two bits worth calling out. There's
-> no elicitation API in WebMCP yet, so when the agent wants to reorganise everything, the
-> handler just waits — and it asks everyone on the board, not only me.
+> The WebMCP bit's eleven tools on `document.modelContext.registerTool`. Couple of things I
+> ran into. There's no way for a tool to ask the user anything yet, so the handler for the
+> destructive one just sits there and waits — and it asks everyone on the board, not only
+> whoever prompted it.
 >
-> And refusals come back as return values, not errors. Throw at a model and it just retries.
-> Tell it what it hit and who got there first, and it does something smarter.
+> And when the page says no, that comes back as a return value, not an error. Throw at a
+> model and it'll just try again. Tell it what it ran into and who got there first, and it
+> usually does something sensible instead.
 >
-> Notion merges a conflict. This thing argues about it."
+> Anyway — that's what the next minute is."
+
+Running long? Cut *"You turn up with ChatGPT…"* — the sentence before it already carries
+the point.
 
 **Do not say "a server couldn't do this."** It could — Notion's server knows who is in the
 document, could prompt them, and gets compare-and-swap free from its database. The claim
