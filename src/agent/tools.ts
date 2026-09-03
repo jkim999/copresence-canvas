@@ -5,6 +5,7 @@ import { LAYOUT_KINDS, type ActorId, type LayoutKind } from '../state/types';
 import { boundsOf } from './layout';
 import { boardContext } from './boardContext';
 import { changesSince } from './changes';
+import { noteFor, stalenessOf } from './staleness';
 import { crediting } from './credit';
 import { announce } from './intent';
 import {
@@ -91,7 +92,50 @@ const readScene = () => {
     note:
       'Coordinates are canvas units, y grows downward. Never send pixel positions back — ' +
       'address notes by id and state the layout you want; the page computes the geometry. ' +
-      'Keep `asOf` and pass it to what_changed rather than re-reading and diffing this.',
+      'Keep `asOf`: pass it to what_changed to learn what happened since, and cite it as ' +
+      '`basedOn` when you write, so the page can refuse your call instead of letting it ' +
+      'overwrite whatever somebody else changed while you were deciding.',
+  };
+};
+
+/**
+ * The premise a write may cite, and the refusal when it no longer holds.
+ *
+ * Optional on purpose. A host that has never heard of `basedOn` keeps working
+ * exactly as before, and an agent that cites its bookmark buys protection from
+ * overwriting a peer — the gate is a guarantee offered, never a toll charged.
+ *
+ * The refusal is not journalled. The journal is derived strictly by diffing the
+ * scene, and a refusal is precisely the case where the scene did not move; an
+ * entry there would be the one line in the record describing something that did
+ * not happen. It surfaces in the ledger instead, beside the call it refused,
+ * which is where this board already shows agent activity that left no mark.
+ */
+const BASED_ON = {
+  basedOn: {
+    type: 'number',
+    description:
+      'The `asOf` you were given by the get_scene this plan is based on. Cite it and the ' +
+      'page will refuse this call outright rather than let it overwrite anything another ' +
+      'participant changed while you were deciding. Omitting it is allowed and skips the ' +
+      'check; you are then writing blind.',
+  },
+} as const;
+
+const staleRefusal = (
+  args: Record<string, unknown> | undefined,
+  ids: readonly string[],
+): { refused: 'stale'; reason: string; changed: unknown[]; moved: 0; note: string } | null => {
+  const verdict = stalenessOf(typeof args?.basedOn === 'number' ? args.basedOn : undefined, ids);
+  if (!verdict.stale) return null;
+  return {
+    refused: 'stale',
+    reason: verdict.reason ?? 'changed',
+    changed: verdict.conflicts,
+    // Stated, and zero. A refusal that omits the field every sibling result
+    // carries invites the reader to assume the write half-landed.
+    moved: 0,
+    note: noteFor(verdict),
   };
 };
 
@@ -256,6 +300,7 @@ export const buildTools = (): ToolDefinition[] => [
           type: 'string',
           description: 'Optional title for the group, shown on the canvas.',
         },
+        ...BASED_ON,
       },
       required: ['nodeIds', 'layout'],
       additionalProperties: false,
@@ -266,6 +311,8 @@ export const buildTools = (): ToolDefinition[] => [
       const layout = asLayout(args?.layout);
       const label = typeof args?.label === 'string' ? args.label : undefined;
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
+      const stale = staleRefusal(args, nodeIds);
+      if (stale) return stale;
       const result = await withAgentBody(() =>
         announce(
           {
@@ -338,6 +385,7 @@ export const buildTools = (): ToolDefinition[] => [
             additionalProperties: false,
           },
         },
+        ...BASED_ON,
       },
       required: ['criterion', 'links'],
       additionalProperties: false,
@@ -354,6 +402,8 @@ export const buildTools = (): ToolDefinition[] => [
         to: String(l?.to ?? ''),
         label: String(l?.label ?? ''),
       }));
+      const stale = staleRefusal(args, [...new Set(links.flatMap((l) => [l.from, l.to]))]);
+      if (stale) return stale;
       const result = await withAgentBody(() =>
         announce(
           {
@@ -416,6 +466,7 @@ export const buildTools = (): ToolDefinition[] => [
           description: 'Ids of the notes to collapse.',
         },
         summary: { type: 'string', description: 'The text of the resulting summary note.' },
+        ...BASED_ON,
       },
       required: ['nodeIds', 'summary'],
       additionalProperties: false,
@@ -426,6 +477,8 @@ export const buildTools = (): ToolDefinition[] => [
       const summary = String(args?.summary ?? '').trim();
       if (nodeIds.length === 0) throw new Error('nodeIds must not be empty');
       if (!summary) throw new Error('summary is required');
+      const stale = staleRefusal(args, nodeIds);
+      if (stale) return stale;
       return withAgentBody(() =>
         announce(
           {
@@ -508,6 +561,7 @@ export const buildTools = (): ToolDefinition[] => [
             additionalProperties: false,
           },
         },
+        ...BASED_ON,
       },
       required: ['rationale', 'groups'],
       additionalProperties: false,
@@ -526,6 +580,11 @@ export const buildTools = (): ToolDefinition[] => [
           layout: g?.layout ? asLayout(g.layout) : undefined,
         }));
       const total = groups.reduce((sum, g) => sum + g.nodeIds.length, 0);
+      // Checked before the room is asked, not after. Putting a proposal built on
+      // a board that no longer exists to a vote wastes everyone's answer, and a
+      // yes obtained under a stale premise is not consent to what would land.
+      const stale = staleRefusal(args, groups.flatMap((g) => g.nodeIds));
+      if (stale) return stale;
       const result = await withAgentBody(() =>
         announce(
           {

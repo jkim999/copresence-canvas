@@ -1,6 +1,6 @@
 # Co-Presence Canvas
 
-**One board. A person and an agent working on it at the same time. The board is allowed to say no.**
+**One board. A person and an agent working on it at the same time. Three things outrank the agent: a hand, the room, and reality.**
 
 Live: **https://copresence-canvas.vercel.app/** — open it in Chrome with
 `chrome://flags/#enable-webmcp-testing` on, or in ChatGPT's in-app browser.
@@ -30,11 +30,22 @@ you on its next turn.
 seat currently on the board. Any one of them can refuse, and saying nothing for ten
 seconds counts as refusing. There's no server arbitrating that. There's no server at all.
 
+**And a write can be refused because the board it was planned against is gone.** Reads hand
+back a bookmark. A write can cite the one it was planned from, and if anybody else touched
+the notes it names in between, the page declines the call, changes nothing, and tells the
+model who moved what and to go and look again. This is the dull one and probably the
+important one: the grip needs a hand to land inside about 440ms, but the seconds a model
+spends deciding are always there, and on a board with other people on it that's long
+enough for the plan's premise to stop being true. It's compare-and-swap, except a backend
+gets that free from its database and a page has to keep the bookmark itself.
+
 That's the thesis. An agent that can act on a live page is table stakes now. An agent that
-can be *outranked* by a hand on a note is the thing WebMCP actually unlocks, because a
-grip lives for about 300ms in one tab and never reaches a database. No backend tool can
-see it, and browser automation can't express it — automation *is* the user, so there's
-nobody to subordinate.
+can be *outranked* is the thing WebMCP actually unlocks, and every one of those three
+refusals is unavailable anywhere else: a grip lives about 300ms in one tab and never
+reaches a database, the room is whoever happens to be here this second, and the read that
+a write is premised on happened in *this* page against a scene held in memory. No backend
+tool can see any of it, and browser automation can't express it — automation *is* the
+user, so there's nobody to subordinate.
 
 ## Multiplayer, and why it's here
 
@@ -66,6 +77,11 @@ the Tools tab in the app shows each one live.
 | `reorganize_board` | Restructure everything. Goes to the room. Takes no for an answer. |
 | `undo_last_agent_action` | The agent reverts its own last change. |
 
+Anything that writes takes an optional `basedOn` — the `asOf` from the read it was planned
+from. Cite it and the page will refuse the call rather than let it land on a board that
+moved underneath. Omit it and you write blind, exactly as before; the gate is a guarantee
+offered, not a toll charged, so a host that's never heard of it keeps working.
+
 Tools take **ids and intent, never pixels**. The model decides what belongs together and
 what shape the group should be; the page computes where things go. That division is why a
 language model is reliable at a geometry task it would otherwise be terrible at.
@@ -96,6 +112,17 @@ History panel render the same facts.
 that dies mid-act stops heartbeating and its promise about the future dies with it.
 Selection too — what you have selected is a fact about you, not about the board.
 
+**A caret is a hand.** Notes were held while being dragged and not while being typed in,
+so an agent would carry a note away mid-sentence — the textarea rides along and keeps
+focus, so you end up typing into a box sliding across the board — and the blur that
+followed wrote your stale draft over whatever had arrived. Both hands now claim through
+one union, because the store's grip is one claim per actor and wiring the caret straight
+into it would have made drag and edit drop each other.
+
+**Refusals aren't journalled.** The record is derived strictly by diffing the scene, and a
+refusal is the case where the scene didn't move. It shows up in the ledger beside the call
+it refused, which is where this board already shows agent activity that left no mark.
+
 **A seat is a tab, and a reload is that seat coming back.** It lives in `sessionStorage`.
 Before that, every load minted a fresh identity and the old one sat in the room for 90
 seconds — so someone who'd reloaded twice couldn't reorganise their own board. Earlier
@@ -124,7 +151,7 @@ what either side is told are identical at any pace.
 ```
 npm install
 npm run dev      # http://localhost:5173
-npm run test     # 376 tests
+npm run test     # 406 tests
 npm run build
 ```
 
@@ -132,7 +159,10 @@ Tests cover the places where a regression would be invisible on screen: chronolo
 inference, every layout's centring and totality, overlap relaxation, the grip invariant at
 the store level, presence and seat identity, the consent gate, share-link round trips and
 its refusal of payloads it can't trust. One test pins the demo board to its exact
-coordinates so the board in the video can't drift.
+coordinates so the board in the video can't drift. The staleness gate is tested through the
+registered tool rather than the rule alone — that the write is refused *before* anything
+moves, that the board is byte-identical afterwards, and that a peer's note is still where
+the peer left it.
 
 **Without a WebMCP host** the Agent console in the side panel drives the identical
 registered handlers — it substitutes keyword heuristics for the model's judgement, then

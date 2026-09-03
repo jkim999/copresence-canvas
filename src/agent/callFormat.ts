@@ -49,6 +49,19 @@ export const summarizeResult = (tool: string, result: unknown): string => {
   const r = result as Record<string, any>;
   const parts: string[] = [];
 
+  // Ahead of the per-tool cases, because a refusal is the same fact whichever
+  // tool was refused, and reading it as "0 moved" — which is what every one of
+  // those cases would say — is exactly the wrong conclusion. Nothing was moved
+  // because the page declined to move it.
+  if (r.refused === 'stale') {
+    const n = Array.isArray(r.changed)
+      ? new Set(r.changed.flatMap((c: any) => c?.ids ?? [])).size
+      : 0;
+    return r.reason === 'forgotten'
+      ? 'refused · board unverifiable'
+      : `refused · ${n} note${n === 1 ? '' : 's'} changed underneath`;
+  }
+
   switch (tool) {
     case 'get_scene': {
       const n = r.counts?.nodes ?? r.nodes?.length ?? 0;

@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useSceneStore } from '../state/sceneStore';
 import { me } from '../state/actors';
+import { releaseHand, takeHand } from '../state/hands';
 import type { SceneNode } from '../state/types';
 import type { PendingKind } from '../agent/announcements';
 
@@ -32,6 +33,28 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(node.text);
   const ref = useRef<HTMLTextAreaElement>(null);
+  /** The text this edit began from, to tell a no-op apart from a collision. */
+  const base = useRef(node.text);
+
+  /**
+   * A caret is a hand. Without this the note is held only while it is being
+   * dragged, so an agent would carry a note away mid-sentence — the textarea
+   * travels with it and keeps focus, leaving somebody typing into a box sliding
+   * across the board — and the blur that followed would write their draft over
+   * whatever had arrived in the meantime. The grip refuses both: it goes out
+   * over awareness, and the store declines a move or an edit to a note held by
+   * anyone else.
+   */
+  const startEditing = () => {
+    base.current = node.text;
+    takeHand('edit', node.id);
+    setEditing(true);
+  };
+
+  const stopEditing = () => {
+    releaseHand('edit', node.id);
+    setEditing(false);
+  };
 
   useEffect(() => {
     if (!editing) setDraft(node.text);
@@ -42,8 +65,16 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
   }, [editing]);
 
   const commit = () => {
-    setEditing(false);
+    stopEditing();
     const next = draft.trim();
+    // Somebody got in before the grip did — a peer whose claim crossed with
+    // ours on the wire, or a board replaced underneath the edit. Rare, and the
+    // right answer is still to leave their text alone: a draft is worth less
+    // than work already on the board, and it is on screen to be retyped.
+    if (node.text !== base.current) {
+      setDraft(node.text);
+      return;
+    }
     if (next && next !== node.text) {
       setNodeText(node.id, next, me());
       pushLog(me(), `Edited note ${node.id}.`);
@@ -68,7 +99,7 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
     <div
       className={classes}
       style={{ background: node.color }}
-      onDoubleClick={() => setEditing(true)}
+      onDoubleClick={startEditing}
       title={node.text}
     >
       <Handle type="target" position={Position.Left} />
@@ -86,7 +117,7 @@ const NoteNodeInner = ({ data, selected }: NodeProps) => {
             }
             if (e.key === 'Escape') {
               setDraft(node.text);
-              setEditing(false);
+              stopEditing();
             }
           }}
         />

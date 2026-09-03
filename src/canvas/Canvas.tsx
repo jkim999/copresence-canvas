@@ -16,6 +16,7 @@ import '@xyflow/react/dist/style.css';
 
 import { useSceneStore } from '../state/sceneStore';
 import { isAgent, me } from '../state/actors';
+import { releaseHand, takeHand } from '../state/hands';
 import type { SceneNode } from '../state/types';
 import { NoteNode, PROVENANCE_MS, type NoteData } from './NoteNode';
 import { AgentCursor } from './AgentCursor';
@@ -83,7 +84,6 @@ export const Canvas = ({ children }: CanvasProps) => {
   const showProvenance = useSceneStore((s) => s.showProvenance);
   const moveNode = useSceneStore((s) => s.moveNode);
   const setSelected = useSceneStore((s) => s.setSelected);
-  const setGrip = useSceneStore((s) => s.setGrip);
   const addNode = useSceneStore((s) => s.addNode);
   const removeNodes = useSceneStore((s) => s.removeNodes);
   const snapshot = useSceneStore((s) => s.snapshot);
@@ -195,21 +195,22 @@ export const Canvas = ({ children }: CanvasProps) => {
 
   // A hand on a note is sacred: it is off limits to the agent's tweens and to
   // anyone else's edits. That guarantee is what makes simultaneous editing safe.
-  const onNodeDragStart: OnNodeDrag<RFNode> = useCallback(
-    (_e, node) => {
-      dragged.current.add(node.id);
-      setGrip([...dragged.current], me());
-    },
-    [setGrip],
-  );
+  //
+  // Claimed through the union rather than the store directly, because a caret
+  // is a hand too and this tab may be holding one note by each. Calling setGrip
+  // from here would drop whatever the other hand had.
+  const onNodeDragStart: OnNodeDrag<RFNode> = useCallback((_e, node) => {
+    dragged.current.add(node.id);
+    takeHand('drag', node.id);
+  }, []);
 
   const onNodeDragStop: OnNodeDrag<RFNode> = useCallback(
     (_e, node) => {
       moveNode(node.id, node.position.x, node.position.y, me());
       dragged.current.delete(node.id);
-      setGrip([...dragged.current], me());
+      releaseHand('drag', node.id);
     },
-    [moveNode, setGrip],
+    [moveNode],
   );
 
   // Pointer moves fire far faster than anyone can read, and each one is a
