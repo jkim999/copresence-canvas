@@ -1,5 +1,6 @@
 import { eventsSince, journalCursor, useJournalStore, type JournalEvent, type JournalVerb } from '../state/journal';
 import { myAgent } from '../state/actors';
+import { useSceneStore } from '../state/sceneStore';
 import { crediting, nameFor } from './credit';
 import type { ActorId } from '../state/types';
 
@@ -66,18 +67,30 @@ export const verdictFrom = (
   events: readonly JournalEvent[],
   ids: readonly string[],
   actor: ActorId,
-  { complete }: { complete: boolean },
+  { complete, membersOf }: { complete: boolean; membersOf?: (id: string) => readonly string[] },
 ): Verdict => {
   // A write that names nothing existing cannot clobber anything: adding notes
   // is not a claim about the board it is landing on.
   if (ids.length === 0) return FRESH;
 
   const named = new Set(ids);
+  // An event is filed against the thing that changed, and for a group that is
+  // the region, not the notes in it. But a peer drawing a group around four
+  // notes has made a claim about those four notes, and a plan that scatters
+  // them tears their group up — so a region is read through to its members
+  // before anything is compared. The first two-seat run of this gate let
+  // exactly that through: nothing on the board is named `r_…`, so nothing
+  // matched.
+  const reach = (id: string): string[] =>
+    named.has(id) ? [id] : (membersOf?.(id) ?? []).filter((member) => named.has(member));
+
   const conflicts = events
     .filter((e) => e.by !== actor)
-    .map((e) => ({ e, hit: e.ids.filter((id) => named.has(id)) }))
+    .map((e) => ({ e, hit: [...new Set(e.ids.flatMap(reach))] }))
     .filter(({ hit }) => hit.length > 0)
     .map(
+      // `ids` are the contested notes, never the region they arrived under: a
+      // refusal that named `r_theirs` would tell a model nothing it could act on.
       ({ e, hit }): Conflict => ({ seq: e.seq, by: e.by, verb: e.verb, ids: hit, detail: e.detail }),
     );
 
@@ -102,7 +115,14 @@ export const stalenessOf = (since: number | undefined, ids: readonly string[]): 
 
   const { events: held } = useJournalStore.getState();
   const oldest = held.length > 0 ? held[0].seq : cursor + 1;
-  return verdictFrom(eventsSince(since), ids, myAgent(), { complete: since >= oldest - 1 });
+  // Membership is read from the board as it stands rather than as it was: the
+  // notes a peer has just gathered are the ones a plan would now be tearing up.
+  const membersOf = (id: string): readonly string[] =>
+    useSceneStore.getState().scene.regions.find((r) => r.id === id)?.nodeIds ?? [];
+  return verdictFrom(eventsSince(since), ids, myAgent(), {
+    complete: since >= oldest - 1,
+    membersOf,
+  });
 };
 
 const VERBS: Partial<Record<JournalVerb, string>> = {
@@ -111,6 +131,7 @@ const VERBS: Partial<Record<JournalVerb, string>> = {
   recoloured: 'recoloured',
   removed: 'deleted',
   replaced: 'replaced',
+  grouped: 'grouped',
 };
 
 /**

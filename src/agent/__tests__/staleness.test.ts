@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { noteFor, stalenessOf, verdictFrom } from '../staleness';
-import { journalCursor, recordFacts, resetJournal } from '../../state/journal';
+import { journalCursor, recordFacts, resetJournal, watchScene } from '../../state/journal';
 import { myAgent, takeSeat } from '../../state/actors';
+import { useSceneStore } from '../../state/sceneStore';
 import type { JournalEvent } from '../../state/journal';
 
 const PEER = 'h_peer';
@@ -73,6 +74,34 @@ describe('verdictFrom', () => {
   });
 });
 
+describe('a group formed around the notes', () => {
+  it('contests the notes inside it, not just the region id it is filed under', () => {
+    // A region event is recorded against the region, because that is the thing
+    // that changed. But a peer drawing a group around four notes has made a
+    // claim about those four notes, and a plan that scatters them tears their
+    // group up. Found live: the first two-seat run of this gate let exactly
+    // this through, because nothing matched an id beginning `r_`.
+    const v = verdictFrom(
+      [event({ verb: 'grouped', ids: ['r_theirs'], detail: 'What people said' })],
+      ['n1', 'n2'],
+      MINE,
+      { complete: true, membersOf: (id) => (id === 'r_theirs' ? ['n2', 'n8'] : []) },
+    );
+    expect(v.stale).toBe(true);
+    expect(v.conflicts[0].ids).toEqual(['n2']);
+  });
+
+  it('leaves a group that shares no notes with the plan alone', () => {
+    const v = verdictFrom(
+      [event({ verb: 'grouped', ids: ['r_theirs'] })],
+      ['n1'],
+      MINE,
+      { complete: true, membersOf: () => ['n8', 'n9'] },
+    );
+    expect(v.stale).toBe(false);
+  });
+});
+
 describe('stalenessOf', () => {
   it('passes a write that cites no premise at all', () => {
     recordFacts([{ at: Date.now(), by: PEER, verb: 'moved', ids: ['n1'], detail: 'a note' }]);
@@ -88,6 +117,22 @@ describe('stalenessOf', () => {
   it('passes once the agent has re-read past the change', () => {
     recordFacts([{ at: Date.now(), by: PEER, verb: 'moved', ids: ['n1'], detail: 'a note' }]);
     expect(stalenessOf(journalCursor(), ['n1']).stale).toBe(false);
+  });
+
+  it('reads group membership from the live board, so a peer’s group contests its notes', () => {
+    const store = useSceneStore.getState();
+    store.resetScene();
+    const id = useSceneStore.getState().scene.nodes[0].id;
+    resetJournal();
+    const stop = watchScene();
+    const before = journalCursor();
+    useSceneStore
+      .getState()
+      .upsertRegion({ id: 'r_theirs', label: 'Theirs', layout: 'grid', nodeIds: [id] }, PEER);
+    const verdict = stalenessOf(before, [id]);
+    stop();
+    expect(verdict.stale).toBe(true);
+    expect(verdict.conflicts[0].ids).toEqual([id]);
   });
 
   it('ignores this seat’s own agent, whose writes are the caller’s own', () => {
