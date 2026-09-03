@@ -8,6 +8,13 @@ narration.
 
 - **Close every tab of the deployed site, then open one fresh.** A room that already
   holds a board wins over a new tab's seed, so a stale tab keeps serving the old board.
+- **Record at `?pace=2`** — open
+  `https://copresence-canvas.vercel.app/?pace=2`. At true speed a note is in flight for
+  under half a second and the whole six-note act is over in four, which is long enough
+  to see and too short to interrupt. `pace` scales durations and nothing else: same code,
+  same refusals, same results. Say "I've slowed the animation down" once, on camera, when
+  you first grab a note — it costs three words and removes the only thing a judge could
+  wonder about.
 - Chrome with `chrome://flags/#enable-webmcp-testing` on. Check the header pill reads
   *WebMCP live · document.modelContext · 11 tools* before you hit record. If it says
   the console instead, that's still honest, but the pill is on camera and judges read it.
@@ -40,9 +47,12 @@ Flash the **Tools** tab: eleven tools, live schemas, registered on the page.
 
 ## 0:40 – 1:20 — the yield. This is the submission.
 
-Run **Build the timeline**, or ask for one.
+Run **Build the timeline**, or ask for one. It visits notes in nearest-neighbour order,
+so **pick your note before you start** — one near the middle of the group, so the cursor
+reaches it a few seconds in rather than immediately.
 
-While it's carrying notes, **grab one of them and hold it.** Say it as it happens:
+Take it as the cursor starts moving toward it, and **keep holding it.** Say it as it
+happens:
 
 > "I just took a note out of its hands. Watch what it gets back."
 
@@ -85,8 +95,9 @@ Then do it again and approve it, and let the board restructure while you talk ov
 
 ## If a beat fails on camera
 
-- **No yield** — your hand landed after the tween finished. Re-run the recipe and grab
-  earlier; the notes move in nearest-neighbour order, so grab one near the start.
+- **No yield** — your hand landed after that note had already been put down. Check the
+  URL still has `?pace=2`, and grab the note *while the cursor is travelling to it*, not
+  after it arrives. At pace 2 you have roughly a second and a half per note.
 - **Consent dialog doesn't appear** — you're alone on the board. Alone, whole-board
   changes just apply. Check the second window is open and visible.
 - **Second seat missing from the roster** — it was backgrounded long enough to be dropped.

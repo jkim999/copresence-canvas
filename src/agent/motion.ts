@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { paced } from './pace';
 import { useSceneStore } from '../state/sceneStore';
 import { myAgent } from '../state/actors';
 import type { ActorId } from '../state/types';
@@ -261,7 +262,7 @@ export const tweenNodeTo = (
       toX,
       toY,
       start: performance.now(),
-      duration,
+      duration: paced(duration),
       resolve,
     });
     ensureLoop();
@@ -279,7 +280,7 @@ export const moveCursorTo = (
   const fromX = cursor.visible ? cursor.x : toX - 260;
   const fromY = cursor.visible ? cursor.y : toY - 200;
   const distance = Math.hypot(toX - fromX, toY - fromY);
-  const duration = Math.min(max, Math.max(min, distance / speed));
+  const duration = paced(Math.min(max, Math.max(min, distance / speed)));
   const start = performance.now();
 
   cursor.set({ visible: true, mode, x: fromX, y: fromY });
@@ -317,7 +318,7 @@ export const wait = (ms: number): Promise<void> =>
   unwatched()
     ? Promise.resolve()
     : new Promise((resolve) => {
-        setTimeout(resolve, ms);
+        setTimeout(resolve, paced(ms));
       });
 
 export const setCursorMode = (mode: CursorMode): void => {

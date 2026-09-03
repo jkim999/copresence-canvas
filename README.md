@@ -113,6 +113,12 @@ versions of themselves were vetoing it.
   fragment. A fully organised 28-note board is a 2.3 KB URL. Nothing is uploaded; there's
   nowhere to upload it to. Import treats every field in that hash as hostile.
 
+**Slowing it down.** Add `?pace=2` to the URL and every duration in the choreography
+stretches by that factor — up to 4x. It's there because the yield is only witnessable
+while a note is in flight, and at true speed that's about 440ms, which is easier to watch
+than to interrupt. It scales pacing only: what the agent may do, what the page refuses and
+what either side is told are identical at any pace.
+
 ## Running it
 
 ```
