@@ -55,26 +55,29 @@ Say nothing over this one.
 
 ---
 
-### Say what it is — 30s
+### Say what it is — 40s
 
 Open the **Tools** tab and leave it up.
 
-> "Okay - two people, two agents, one board.
+> "Figma and Miro solved multiplayer — for people. Notion put an assistant in the sidebar,
+> and yes, it'll edit a doc while you're in it. That part's solved.
 >
-> That teal cursor over there has somebody else's name on it. That's not a recording.
-> That's the other person's agent, working on their screen, showing up on mine - while I'm
-> dragging a note myself.
+> But it's Notion's agent, on Notion's server, with Notion's privileges. What's new is a
+> page handing capabilities to an agent it doesn't own and can't trust — and being able to
+> say no.
 >
-> Here's the whole thing. An infinite sticky-note canvas - React, Yjs for the peer-to-peer
-> sync, no backend at all. On top of that, eleven tools registered on the page through
-> `document.modelContext.registerTool`. Reads, writes, and one that asks permission.
+> So: an infinite sticky-note canvas. React, Yjs for the peer-to-peer sync, no backend at
+> all. Eleven tools registered on the page through `document.modelContext.registerTool` —
+> reads, writes, and one that asks permission.
 >
-> The schemas are the boring half. The interesting half is what comes back - three of these
-> tools can refuse, and the refusal is the return value. The model gets told what stopped it
-> and what to do instead, in the same JSON as a success. That's the bit you can only do from
-> inside the page, and it's what the rest of this is."
+> The schemas are the boring half. The interesting half is what comes back: three of these
+> can refuse, and the refusal is the return value. Their doc *merges* a conflict. This one
+> *adjudicates* it. That's the rest of this video."
 
----
+**Do not say "a server couldn't do this."** It could — Notion's server knows who is in the
+document, could prompt them, and gets compare-and-swap free from its database. The claim
+that survives contact with a judge who works on one of these products is narrower and
+better: the agent is not the vendor's, and a merge rule is not a decision.
 
 ### C · take a note out of its hands — 30s
 
@@ -129,10 +132,10 @@ moved.*
 
 Press **E2**. Both seats approve and the board restructures. Talk over it.
 
-> "Asking *the user* is a confirm dialog. That's solved.
->
-> Asking whoever's actually in the room right now, where one person is enough to stop the
-> whole thing - that only works if the tools live where the room does."
+> "Now I'll say yes."
+
+Let the restructure play out under the next beat. E1 already made the point; E2 only has to
+show the gate lets work through.
 
 ---
 
@@ -141,10 +144,11 @@ Press **E2**. Both seats approve and the board restructures. Talk over it.
 > "So: a shared canvas, no server, and eleven page-side tools that two people and two agents
 > can drive at the same time.
 >
-> Three things outrank the agent here - a hand on a note, the room, and whether the board it
-> planned against still exists. A server can't know any of those. It can't be interrupted by
-> a hand, it can't ask a room, and it can't tell you the ground moved under a read it never
-> saw.
+> Three things outrank the agent here — a hand on a note, the room, and whether the board it
+> planned against still exists. Those aren't merge rules. They're decisions.
+>
+> And none of this needs a server — more to the point, none of it belongs to one. The page
+> sets the terms for an agent it didn't ship.
 >
 > This one's in the room."
 
