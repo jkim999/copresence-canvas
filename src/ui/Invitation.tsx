@@ -131,7 +131,8 @@ export const Invitation = ({ tools }: Props) => {
   return (
     <div className="invitation chrome-surface">
       <p className="invitation-lede">
-        An agent and a person edit this board at the same time. Nobody waits a turn.
+        This is a software project being planned, a week in. An agent and a person work on
+        it at the same time — nobody waits a turn.
       </p>
       <button type="button" className="invitation-go" onClick={() => void start()}>
         Watch it happen
