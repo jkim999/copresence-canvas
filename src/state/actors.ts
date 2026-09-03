@@ -54,10 +54,10 @@ const localPair = (): Record<ActorId, Actor> => ({
 });
 
 /**
- * Seat colours. Today this is the load-bearing pair and nothing else, so extra
- * participants share a colour rather than borrow a hue the design system has
- * not assigned. A real ramp is a design decision that belongs with the presence
- * cursors that will need it.
+ * The fixed pair: terracotta for this tab's hand, teal for its agent. Every
+ * frame of this page is read through that one contrast, so it does not move.
+ * Other people's hues come from `seatColor`, which needs no registry — a peer
+ * has to look the same on every screen, and nothing here is shared.
  */
 const SEATS: Record<ActorKind, string[]> = {
   human: ['var(--human)'],
@@ -86,6 +86,29 @@ const hash = (text: string): number => {
 };
 
 export const seatName = (id: ActorId): string => SEAT_NAMES[hash(id) % SEAT_NAMES.length];
+
+/**
+ * Hues for the other people on the board, derived the same way names are.
+ *
+ * Terracotta is deliberately not in here. This tab's own hand is always
+ * terracotta and its agent always teal, and that pair is how every frame of
+ * this page is read — so a peer must never be able to land on either, however
+ * their id hashes. Everyone else is somebody else, and distinguishable from
+ * each other.
+ */
+const PEER_COLORS = [
+  'var(--seat-2)',
+  'var(--seat-3)',
+  'var(--seat-4)',
+  'var(--seat-5)',
+  'var(--seat-6)',
+];
+
+/**
+ * A colour for a seat, needing no coordination: the same peer is the same
+ * colour on every screen, for the same reason they are the same name.
+ */
+export const seatColor = (id: ActorId): string => PEER_COLORS[hash(id) % PEER_COLORS.length];
 
 /**
  * Seat names for a set of participants, guaranteed distinct within that set.

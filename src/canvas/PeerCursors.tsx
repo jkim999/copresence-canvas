@@ -1,6 +1,8 @@
+import type { CSSProperties } from 'react';
 import { ViewportPortal } from '@xyflow/react';
 import { usePeerCursorStore } from '../sync/peers';
 import { PointerBody } from './Pointer';
+import { seatColor } from '../state/actors';
 
 /**
  * Other people's pointers, drawn on the board rather than on the screen.
@@ -16,16 +18,24 @@ export const PeerCursors = () => {
 
   return (
     <ViewportPortal>
-      {cursors.map((c) => (
-        <div
-          key={c.actor}
-          className="actor-cursor human peer-cursor"
-          style={{ transform: `translate(${c.point.x}px, ${c.point.y}px)` }}
-        >
-          <PointerBody actor="human" />
-          <span className="tag">{c.name}</span>
-        </div>
-      ))}
+      {cursors.map((c) => {
+        // Everyone on the board was terracotta, which answers "somebody else is
+        // here" and refuses to answer "which of you" — the question a board
+        // with more than two people on it is actually asking.
+        const color = seatColor(c.actor);
+        return (
+          <div
+            key={c.actor}
+            className="actor-cursor human peer-cursor"
+            style={
+              { transform: `translate(${c.point.x}px, ${c.point.y}px)`, '--seat': color } as CSSProperties
+            }
+          >
+            <PointerBody actor="human" color={color} />
+            <span className="tag">{c.name}</span>
+          </div>
+        );
+      })}
     </ViewportPortal>
   );
 };

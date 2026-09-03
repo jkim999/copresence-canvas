@@ -1,5 +1,13 @@
 import { useSceneStore } from '../state/sceneStore';
-import { disambiguate, kindOf, me, myAgent, seatName } from '../state/actors';
+import {
+  disambiguate,
+  kindOf,
+  LOCAL_AGENT,
+  LOCAL_HUMAN,
+  me,
+  myAgent,
+  seatName,
+} from '../state/actors';
 import { roomView } from '../sync/peers';
 import type { ActorId, ActorKind } from '../state/types';
 
@@ -49,16 +57,39 @@ const seatsOf = (peers: readonly { actor: ActorId; agent: ActorId | null }[]): M
   return humanOf;
 };
 
+/** What the starting board is credited to, since it is nobody's work. */
+export const NO_ONE = 'the starting board';
+
+/**
+ * The two ids this page used before it had seats, when they are not this tab's.
+ *
+ * Every note on the seeded board is authored by `human`, which is a real actor
+ * id and therefore looked like a real participant: a fresh board carried a
+ * person nobody had met. `seatName('human')` is Amber, so when a live seat's id
+ * hashed to Amber too, the roster told them apart the way it tells two people
+ * apart — and a board with one person on it read "Amber 1" and "Amber 2".
+ *
+ * They stay actors, because published share links carry those exact strings and
+ * `kindOf` is a pure string test the render path runs per note per frame. They
+ * simply stop being counted as somebody.
+ */
+const isPreSeat = (id: ActorId): boolean =>
+  (id === LOCAL_HUMAN || id === LOCAL_AGENT) && id !== me() && id !== myAgent();
+
 /**
  * Everyone whose name might need to appear: the pair at this seat, everyone in
  * the room, and everyone whose fingerprints are still on the board even if they
  * have since left. The last group is the reason this is not simply the peer list.
+ *
+ * A departed *person* is still named — they did the work and someone may need
+ * to ask them about it. The starting board is not a departed person.
  */
 const cast = (): Set<ActorId> => {
   const { scene } = useSceneStore.getState();
   const everyone = new Set<ActorId>([me(), myAgent(), ...roomView().peers.map((p) => p.actor)]);
   for (const n of scene.nodes) everyone.add(n.lastEditedBy);
   for (const e of scene.edges) everyone.add(e.lastEditedBy);
+  for (const id of everyone) if (isPreSeat(id)) everyone.delete(id);
   return everyone;
 };
 
@@ -80,6 +111,7 @@ export const crediting = (extra: readonly ActorId[] = []): ((by: ActorId) => Cre
   const label = disambiguate([...new Set(seats)]);
 
   return (by) => {
+    if (isPreSeat(by)) return { kind: kindOf(by), seat: NO_ONE, mine: false };
     const seatFor = humanOf.get(by) ?? by;
     return {
       kind: kindOf(by),

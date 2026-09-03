@@ -34,6 +34,16 @@
   --agent-edge: rgba(14, 110, 100, 0.4);
   --human: #a8492a;
   --human-lift: #dc8a5e;
+  /* Seats past the first. One person is terracotta and their agent is teal —
+     that pairing is load-bearing everywhere and does not move. Everyone after
+     them needs a hue of their own, because "somebody else is holding this" is
+     not the same fact as "which of the four of you is holding this". Chosen to
+     stay apart from both anchors and from each other at cursor size. */
+  --seat-2: #4a5f9e;
+  --seat-3: #8a5ea8;
+  --seat-4: #7a7320;
+  --seat-5: #a8456b;
+  --seat-6: #2f7d5a;
 
   /* status — deliberately muted so they never compete with the actors */
   --ok: #5f9e6a;
@@ -491,7 +501,7 @@ button { font: inherit; cursor: pointer; color: inherit; }
   box-shadow: 0 2px 8px rgba(60, 50, 30, 0.28);
 }
 .actor-cursor.agent .tag { background: var(--agent); color: #f2fbf9; }
-.actor-cursor.human .tag { background: var(--human); color: #fff3ec; }
+.actor-cursor.human .tag { background: var(--seat, var(--human)); color: #fff3ec; }
 .actor-cursor .tag em {
   font-style: normal;
   font-weight: 450;
@@ -1217,7 +1227,11 @@ button { font: inherit; cursor: pointer; color: inherit; }
   .topbar { padding-left: 12px; gap: 6px; }
   .topbar .label { display: none; }
   .btn { padding: 0 8px; }
-  .status .long { display: none; }
+  /* The host pill's prefix is decoration and can go. A seat name is not: it is
+     the only thing on screen that says who else is here, and a bare dot says
+     somebody without saying who — which on a board whose whole subject is more
+     than one participant is the one label that must survive a narrow window. */
+  .status:not(.here) .long { display: none; }
 }
 @media (max-width: 700px) {
   .panel { width: 268px; }
