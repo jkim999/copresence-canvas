@@ -4,49 +4,55 @@ import { PAPER } from './palette';
 import { scatter } from './scatter';
 
 /**
- * A messy, realistic research-synthesis board: interview quotes, metrics,
- * timeline events and hypotheses from a "why did onboarding conversion drop"
- * investigation. Deliberately scattered — the whole point of the demo is that
- * an agent can physically impose structure on it while you keep working.
+ * A messy, realistic planning board: the first week of a software project,
+ * before anyone has decided anything. Voices from the kickoff, the numbers the
+ * team has to live inside, the dates already in the calendar, the risks nobody
+ * has assigned, and the calls waiting to be made.
+ *
+ * Deliberately scattered, and deliberately short-lined — this is the board the
+ * demo video is shot on, so every note has to stay legible at video bitrates
+ * while an agent moves it. The five shapes are load-bearing: quoted lines are
+ * what the agent reaches for when a hand takes one back, and all five are what
+ * a whole-board restructure has to ask the room about.
  */
 const NOTES: readonly { text: string; color: string }[] = [
-  // interview evidence
-  { text: '"I gave up at the workspace-name step."', color: PAPER.quote },
-  { text: '"Didn\'t know what a workspace even was."', color: PAPER.quote },
-  { text: '"The email never arrived, I tried twice."', color: PAPER.quote },
-  { text: '"I wanted to poke around before signing up."', color: PAPER.quote },
-  { text: '"Asked for my team size before showing me anything."', color: PAPER.quote },
-  { text: '"Took a screenshot to send to my manager."', color: PAPER.quote },
+  // what people said at kickoff
+  { text: '"We can\'t run the pilot without SSO."', color: PAPER.quote },
+  { text: '"Don\'t make me migrate twice."', color: PAPER.quote },
+  { text: '"Mobile is where my team actually works."', color: PAPER.quote },
+  { text: '"Who do I call when it breaks at 2am?"', color: PAPER.quote },
+  { text: '"The last vendor took six weeks to onboard."', color: PAPER.quote },
+  { text: '"Just make search fast. That\'s the whole ask."', color: PAPER.quote },
 
-  // quantitative
-  { text: 'Signup → activation down 31% QoQ', color: PAPER.metric },
-  { text: '62% of drop-off happens on step 3 of 5', color: PAPER.metric },
-  { text: 'Mobile completion 19%, desktop 54%', color: PAPER.metric },
-  { text: 'Median time-to-first-value: 11m 40s', color: PAPER.metric },
-  { text: 'Verification email p95 delivery: 4m 12s', color: PAPER.metric },
-  { text: 'Support tickets tagged "onboarding" +2.4x', color: PAPER.metric },
+  // the numbers we have to live inside
+  { text: '340 teams on the beta list', color: PAPER.metric },
+  { text: 'Two engineers, one designer, ten weeks', color: PAPER.metric },
+  { text: '41% of signups asked for SSO', color: PAPER.metric },
+  { text: 'Search p95 has to stay under 200ms', color: PAPER.metric },
+  { text: 'Import tool: three weeks, best case', color: PAPER.metric },
+  { text: 'Runway covers four months', color: PAPER.metric },
 
-  // timeline events
-  { text: 'Mar 3 — new signup flow ships', color: PAPER.event },
-  { text: 'Mar 11 — email provider migration', color: PAPER.event },
-  { text: 'Mar 24 — team-size question added', color: PAPER.event },
-  { text: 'Apr 2 — mobile web redesign', color: PAPER.event },
-  { text: 'Apr 15 — first conversion alert fires', color: PAPER.event },
-  { text: 'Apr 28 — research sprint kicks off', color: PAPER.event },
+  // dates already in the calendar
+  { text: 'Sep 8 — kickoff', color: PAPER.event },
+  { text: 'Sep 22 — API frozen for v1', color: PAPER.event },
+  { text: 'Oct 6 — internal dogfood starts', color: PAPER.event },
+  { text: 'Oct 27 — private beta, 20 teams', color: PAPER.event },
+  { text: 'Nov 17 — feature freeze', color: PAPER.event },
+  { text: 'Dec 1 — public launch', color: PAPER.event },
 
-  // hypotheses
-  { text: 'H1: Step 3 asks for data users don\'t have yet', color: PAPER.hypothesis },
-  { text: 'H2: Email deliverability regressed post-migration', color: PAPER.hypothesis },
-  { text: 'H3: Mobile layout hides the primary CTA', color: PAPER.hypothesis },
-  { text: 'H4: No way to preview value before committing', color: PAPER.hypothesis },
+  // what could go wrong
+  { text: 'R1: SSO blocks every enterprise pilot', color: PAPER.hypothesis },
+  { text: 'R2: The import tool is on the critical path', color: PAPER.hypothesis },
+  { text: 'R3: One engineer is away for two weeks in October', color: PAPER.hypothesis },
+  { text: 'R4: Search cost scales with the beta list', color: PAPER.hypothesis },
+  { text: 'R5: No on-call rota exists yet', color: PAPER.hypothesis },
 
-  // proposed actions
-  { text: 'Defer team size to post-activation', color: PAPER.action },
-  { text: 'Add magic-link fallback for verification', color: PAPER.action },
-  { text: 'Sticky CTA on mobile step 3', color: PAPER.action },
-  { text: 'Ship a sandbox demo workspace', color: PAPER.action },
-  { text: 'Instrument per-field abandonment', color: PAPER.action },
-  { text: 'Weekly activation dashboard for the team', color: PAPER.action },
+  // calls waiting to be made
+  { text: 'Buy SSO, don\'t build it', color: PAPER.action },
+  { text: 'Cut the mobile app to responsive web', color: PAPER.action },
+  { text: 'Dogfood before beta, no exceptions', color: PAPER.action },
+  { text: 'Name one owner per launch gate', color: PAPER.action },
+  { text: 'Write the on-call rota in October', color: PAPER.action },
 ];
 
 export const seedScene = (): Scene => {
