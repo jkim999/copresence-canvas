@@ -190,3 +190,30 @@ describe('the room name', () => {
     expect(roomFromLocation('https://x.app/')).toBe('https://x.app/');
   });
 });
+
+describe('which board a URL means', () => {
+  it('puts two tabs of the same page in one room', () => {
+    expect(roomFromLocation('https://x.test/board')).toBe(roomFromLocation('https://x.test/board'));
+  });
+
+  it('ignores the hash, which is a place on the board rather than a board', () => {
+    expect(roomFromLocation('https://x.test/b#n_04')).toBe(roomFromLocation('https://x.test/b'));
+  });
+
+  it('ignores flags that only describe this tab, not which board it is on', () => {
+    const plain = roomFromLocation('https://x.test/b');
+    expect(roomFromLocation('https://x.test/b?demo=a')).toBe(plain);
+    expect(roomFromLocation('https://x.test/b?demo=b')).toBe(plain);
+    expect(roomFromLocation('https://x.test/b?pace=2')).toBe(plain);
+    expect(roomFromLocation('https://x.test/b?demo=a&pace=2')).toBe(plain);
+  });
+
+  it('still separates boards that are genuinely different', () => {
+    expect(roomFromLocation('https://x.test/one')).not.toBe(roomFromLocation('https://x.test/two'));
+    expect(roomFromLocation('https://x.test/b?board=k9')).not.toBe(roomFromLocation('https://x.test/b'));
+  });
+
+  it('does not fall over on something that is not a URL', () => {
+    expect(roomFromLocation('local')).toBe('local');
+  });
+});

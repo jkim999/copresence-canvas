@@ -258,7 +258,31 @@ export const openSession = (
  * Everyone who opens the same URL lands in the same room, and nobody has to be
  * told a room name. Two tabs of the same board are already the demo.
  */
+/**
+ * Query flags that describe this tab rather than which board it is on.
+ *
+ * The room key is the URL, which is what makes a share link a room with no
+ * server to allocate one. That was exactly right until two tabs of the same
+ * board needed to differ in the URL: `?demo=a` and `?demo=b` are one board and
+ * two seats, and keying on the raw URL silently put them on separate boards
+ * that could never see each other. The failure is invisible — both tabs work
+ * perfectly, alone — so it is worth naming the flags rather than discovering
+ * this again. `pace` is the same kind of thing: how fast this tab animates is
+ * nobody else's business.
+ */
+const TAB_ONLY_FLAGS = ['demo', 'pace'];
+
 export const roomFromLocation = (href: string): string => {
   const [base] = href.split('#');
-  return base;
+  try {
+    const url = new URL(base);
+    for (const flag of TAB_ONLY_FLAGS) url.searchParams.delete(flag);
+    // A trailing '?' would make two spellings of one room.
+    url.search = url.searchParams.toString();
+    return url.toString();
+  } catch {
+    // Not a URL at all — tests and workers pass plain strings, and a room key
+    // only has to be stable and equal for equal inputs.
+    return base;
+  }
 };

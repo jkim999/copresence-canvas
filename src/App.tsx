@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 
 import { Canvas } from './canvas/Canvas';
 import { Panel, TABS, type Tab } from './ui/Panel';
+import { DemoBar } from './demo/DemoBar';
 import { TopBar } from './ui/TopBar';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ImportDialog } from './ui/ImportDialog';
@@ -79,6 +80,7 @@ export const App = () => {
         )}
 
       </div>
+      <DemoBar tools={tools} />
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <ConfirmDialog />
     </div>

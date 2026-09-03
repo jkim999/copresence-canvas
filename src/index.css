@@ -1610,3 +1610,38 @@ button { font: inherit; cursor: pointer; color: inherit; }
   .invitation { transition: none; }
   .invitation-go { transition: none; }
 }
+
+/* The autopilot's bar. Deliberately plain and out of the way: it is scaffolding
+   for a recording, not part of the product, and anything in shot that looks
+   designed will be read as a feature. */
+.demo-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(20, 20, 22, 0.88);
+  color: #f4f4f5;
+  font-size: 11px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+}
+.demo-bar .demo-role { opacity: 0.6; letter-spacing: 0.06em; text-transform: uppercase; }
+.demo-bar button {
+  background: rgba(255, 255, 255, 0.09);
+  color: inherit;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+.demo-bar button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.demo-bar button:disabled { opacity: 0.4; cursor: default; }
+.demo-bar button.on { background: var(--agent); color: #08181a; }
+.demo-bar .demo-idle { opacity: 0.7; }
+.demo-bar .demo-error { color: #ffb4a8; max-width: 320px; }
