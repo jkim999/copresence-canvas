@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useSceneStore } from '../state/sceneStore';
 import { myAgent } from '../state/actors';
+import type { ActorId } from '../state/types';
 
 // ---------------------------------------------------------------------------
 // Easing
@@ -97,6 +98,25 @@ const sameIds = (a: string[], b: string[]): boolean =>
 /** What the agent last told the board it had hold of. */
 let claimed: string[] = [];
 
+/**
+ * Who took each note the agent had to let go of, kept until the caller asks.
+ *
+ * It is not on the promise because the promise resolves a `TweenOutcome` that
+ * six call sites and their tests read directly, and widening it to carry one
+ * optional field would churn all of them to say the same thing. The holder is
+ * known only at the instant of the yield — read it a moment later and the hand
+ * may already have opened — so it has to be captured here rather than looked up
+ * afterwards.
+ */
+const takenBy = new Map<string, ActorId>();
+
+/** Who took this note out of the agent's hands, asked once and then forgotten. */
+export const whoTook = (id: string): ActorId | null => {
+  const holder = takenBy.get(id) ?? null;
+  takenBy.delete(id);
+  return holder;
+};
+
 const step = (now: number): void => {
   lastTick = now;
   const positions: Record<string, { x: number; y: number }> = {};
@@ -110,6 +130,7 @@ const step = (now: number): void => {
     // permanently — the agent's own claim below is not a reason to let go.
     if (grip[tween.id] !== undefined && grip[tween.id] !== agent) {
       stolen.add(tween.id);
+      takenBy.set(tween.id, grip[tween.id]);
       finished.push(tween);
       continue;
     }
@@ -224,7 +245,10 @@ export const tweenNodeTo = (
     // animation. Only the pacing is dropped.
     const agent = myAgent();
     const holder = useSceneStore.getState().grip[id];
-    if (holder !== undefined && holder !== agent) return Promise.resolve('yielded');
+    if (holder !== undefined && holder !== agent) {
+      takenBy.set(id, holder);
+      return Promise.resolve('yielded');
+    }
     useSceneStore.getState().moveNode(id, toX, toY, agent);
     return Promise.resolve('landed');
   }

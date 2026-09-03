@@ -33,12 +33,16 @@ const OPENING = 'affinity';
 export const Invitation = ({ tools }: Props) => {
   const changes = useJournalStore((s) => s.events.length);
   const connected = useHostStore((s) => s.connected);
+  // Any call at all, not just one that changed the board. A read leaves no
+  // journal entry but does put the ledger up, which this would then sit on top
+  // of — and somebody who has already called something does not need inviting.
+  const calls = useHostStore((s) => s.calls.length);
   const [dismissed, setDismissed] = useState(false);
   const [running, setRunning] = useState(false);
 
   // A board that has already been worked on needs no invitation to start, and a
   // host that is connected has a human who found their own way in.
-  if (dismissed || running || changes > 0 || connected) return null;
+  if (dismissed || running || changes > 0 || calls > 0 || connected) return null;
 
   const recipe = RECIPES.find((r) => r.id === OPENING);
   if (!recipe) return null;

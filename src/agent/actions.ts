@@ -1,6 +1,6 @@
 import { useSceneStore } from '../state/sceneStore';
 import { PAPER } from '../data/palette';
-import type { LayoutKind, SceneNode } from '../state/types';
+import type { ActorId, LayoutKind, SceneNode } from '../state/types';
 import {
   applyLayout,
   boundsOf,
@@ -15,8 +15,10 @@ import {
   tweenNodeTo,
   useCursorStore,
   wait,
+  whoTook,
   type TweenOutcome,
 } from './motion';
+import { crediting } from './credit';
 import { useConfirmStore } from './confirm';
 import { me, myAgent, seatName } from '../state/actors';
 import { stopRequested } from './intent';
@@ -122,6 +124,7 @@ export const animateAgentCursorThrough = async (
   // Only a hand on the note counts as yielding. A tween the agent replaced is
   // its own business and must not be reported to the model as a refusal.
   const yieldedToHuman = settled.filter((c) => c.outcome === 'yielded').map((c) => c.id);
+  announceYields(yieldedToHuman);
   const notReached = stoppedAt < 0 ? [] : path.slice(stoppedAt).map((n) => n.id);
   if (stoppedAt >= 0) {
     // Attributed to the human, because the human did it. This is the one line
@@ -142,6 +145,41 @@ export const animateAgentCursorThrough = async (
     notReached,
     stopped: stoppedAt >= 0,
   };
+};
+
+/**
+ * Tell the human when the page let go of a note on their behalf.
+ *
+ * This is the moment the whole canvas is built around — a hand closes on a note
+ * and the machine gives it up — and it was reported only to the agent. The
+ * person it was done for felt a note not moving and was told nothing, while the
+ * model got a sentence about it. That is the wrong way round: the human is the
+ * one being defended.
+ *
+ * Named, because a seat name is what everything else here says. "Someone took
+ * it" is the half-answer this board keeps having to fix.
+ */
+const announceYields = (ids: readonly string[]): void => {
+  if (ids.length === 0) return;
+
+  const byTaker = new Map<ActorId, number>();
+  for (const id of ids) {
+    const taker = whoTook(id);
+    if (taker === null) continue;
+    byTaker.set(taker, (byTaker.get(taker) ?? 0) + 1);
+  }
+  if (byTaker.size === 0) return;
+
+  const credit = crediting([...byTaker.keys()]);
+  for (const [taker, n] of byTaker) {
+    const notes = n === 1 ? 'a note' : `${n} notes`;
+    const who = taker === me() ? 'you had hold of' : `${credit(taker).seat} had hold of`;
+    // A notice, not the agent narrating: the page did this, and it did it for
+    // the person reading.
+    useSceneStore
+      .getState()
+      .pushLog('system', `Your agent let go of ${notes} — ${who} ${n === 1 ? 'it' : 'them'}.`);
+  }
 };
 
 /**

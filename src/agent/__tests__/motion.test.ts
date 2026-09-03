@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { moveCursorTo, tweenNodeTo, useCursorStore } from '../motion';
 import { animateAgentCursorThrough } from '../actions';
+import { me } from '../../state/actors';
 import { announce, requestStop, useIntentStore } from '../intent';
 import { useSceneStore } from '../../state/sceneStore';
 import { LOCAL_HUMAN, myAgent } from '../../state/actors';
@@ -280,5 +281,56 @@ describe('stopping an act that is under way', () => {
       const after = useSceneStore.getState().getNode(id)!;
       expect({ x: after.x, y: after.y }).toEqual(before.get(id));
     }
+  });
+});
+
+
+/**
+ * The refusal, told to the person it was made for.
+ *
+ * A hand closing on a note and the machine giving it up is the moment this
+ * whole canvas exists to demonstrate — and it was reported only to the agent,
+ * under `yieldedToHuman`. The human felt a note not moving and was told
+ * nothing, while the model got a sentence about it. The human is the one being
+ * defended and was the one kept in the dark.
+ */
+describe('what the human is told when the agent lets go', () => {
+  const notices = () =>
+    useSceneStore
+      .getState()
+      .log.filter((entry) => entry.text.includes('let go'))
+      .map((entry) => entry.text);
+
+  it('says so, in the record, naming who took it', async () => {
+    const [note] = useSceneStore.getState().scene.nodes;
+    const flight = animateAgentCursorThrough([note.id], {
+      targets: { [note.id]: { x: 900, y: 900 } },
+      speed: 40,
+      grabPause: 0,
+      carryDuration: 400,
+    });
+    // A hand closes on it mid-flight, which is the case the board promises.
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    useSceneStore.getState().setGrip([note.id], LOCAL_HUMAN);
+    const result = await flight;
+
+    expect(result.yieldedToHuman).toEqual([note.id]);
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0]).toContain('a note');
+    // This tab's own human reads as "you", not as a seat name: a seat name is
+    // what a peer calls you, and being told a stranger took your own note is
+    // worse than not being told at all.
+    expect(notices()[0]).toContain(LOCAL_HUMAN === me() ? 'you had hold of' : 'had hold of');
+  });
+
+  it('says nothing when nothing was taken', async () => {
+    const [note] = useSceneStore.getState().scene.nodes;
+    await animateAgentCursorThrough([note.id], {
+      targets: { [note.id]: { x: 300, y: 300 } },
+      speed: 40,
+      grabPause: 0,
+      carryDuration: 20,
+    });
+    expect(notices()).toEqual([]);
   });
 });
