@@ -148,7 +148,7 @@ any pace.
 ```
 npm install
 npm run dev      # http://localhost:5173
-npm run test     # 471 tests
+npm run test     # 483 tests
 npm run build
 ```
 

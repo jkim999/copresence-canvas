@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { formatArgs, summarizeResult } from './callFormat';
+import { validateArgs } from './validateArgs';
 
 /**
  * WebMCP host adapter.
@@ -156,6 +157,11 @@ export const instrument = (tool: ToolDefinition): ToolDefinition => {
     execute: async (args, context) => {
       const id = useHostStore.getState().recordCall(tool.name, args);
       try {
+        // What a host would have caught before the handler ever ran. Recorded
+        // first and then thrown, so a refused call is a visible row in the
+        // ledger rather than a call that never appears to have happened.
+        const complaint = validateArgs(tool.inputSchema, args);
+        if (complaint !== null) throw new Error(complaint);
         const result = await tool.execute(args ?? {}, context);
         useHostStore.getState().completeCall(id, result);
         return result;
