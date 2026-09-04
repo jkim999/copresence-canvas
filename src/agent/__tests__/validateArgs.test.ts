@@ -118,3 +118,11 @@ describe('the check where the calls come in', () => {
     expect(calls[calls.length - 1].error).toMatch(/anchorTo/);
   });
 });
+
+describe('the sentence a model has to read', () => {
+  it('gets its article right, since the message is the whole product', () => {
+    const s = { type: 'object', properties: { ids: { type: 'array' }, n: { type: 'number' } } };
+    expect(validateArgs(s, { ids: 'n_01' })).toContain('must be an array');
+    expect(validateArgs(s, { n: 'six' })).toContain('must be a number');
+  });
+});

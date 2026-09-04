@@ -74,10 +74,12 @@ export const validateArgs = (
       }
       continue;
     }
-    const wanted = declared[key]?.type;
-    const check = typeof wanted === 'string' ? KINDS[wanted] : undefined;
-    if (value !== undefined && check !== undefined && !check(value)) {
-      return `"${key}" must be a ${wanted}, not ${kindOf(value)}`;
+    const declaredType = declared[key]?.type;
+    const wanted = typeof declaredType === 'string' ? declaredType : null;
+    const check = wanted === null ? undefined : KINDS[wanted];
+    if (wanted !== null && value !== undefined && check !== undefined && !check(value)) {
+      const article = 'aeiou'.includes(wanted[0]) ? 'an' : 'a';
+      return `"${key}" must be ${article} ${wanted}, not ${kindOf(value)}`;
     }
   }
 
